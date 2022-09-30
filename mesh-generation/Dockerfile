@@ -17,6 +17,6 @@ RUN apt-get update && \
 RUN pip3 install pyvista meshio scipy multiprocess joblib numpy argparse
 
 # Copy sources to create
-COPY mesh-generation.py /usr/bin/mesh-generation.py
+COPY mesh-generation/mesh-generation.py /usr/bin/mesh-generation.py
 
 ENTRYPOINT [ "/usr/bin/mesh-generation.py" ] 
