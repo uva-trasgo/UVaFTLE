@@ -1,4 +1,4 @@
-name: Build devel and runtime FTLE containers for multiple versions of cuda
+name: FTLE Docker Image
 
 # Controls when the workflow will run
 on:
