@@ -67,9 +67,10 @@ COPY --from=builder /uvaftle/CPU/bin /uvaftle/CPU/bin
 COPY --from=builder /uvaftle/CUDA/bin /uvaftle/CUDA/bin
 
 # Copy to /usr/bin
-RUN cp /uvaftle/CPU/bin/ftle /usr/bin/ftle_static-cpu 
-RUN cp /uvaftle/CPU/bin/ftle /usr/bin/ftle_dynamic-cpu 
-RUN cp /uvaftle/CPU/bin/ftle /usr/bin/ftle_guided-cpu 
+RUN cp /uvaftle/CPU/bin/ftle_static /usr/bin/ftle_static-cpu 
+RUN cp /uvaftle/CPU/bin/ftle_dynamic /usr/bin/ftle_dynamic-cpu 
+RUN cp /uvaftle/CPU/bin/ftle_guided /usr/bin/ftle_guided-cpu 
+
 RUN cp /uvaftle/CUDA/bin/ftle /usr/bin/ftle-gpu 
 
 # Container init directory
