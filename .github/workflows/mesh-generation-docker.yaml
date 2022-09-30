@@ -28,6 +28,7 @@ jobs:
   build-amd64:
     runs-on: ubuntu-latest
     env: 
+      IMAGE_TAG: v1
     steps:
       # Get the repositery's code
       - name: Checkout
