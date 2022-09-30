@@ -1,0 +1,46 @@
+ARG nvidia_image_tag=11.7.1-devel-ubuntu22.04
+# 11.7.1-devel-ubuntu20.04
+# 10.2-devel-ubuntu18.04
+# 10.1-devel-ubuntu18.04
+
+FROM nvidia/cuda:${nvidia_image_tag} 
+
+LABEL name="UVaFTLE"
+LABEL org.opencontainers.image.description="UVaFTLE: Lagrangian Finite Time Lypaunov Exponent extraction for Fluid Dynamic Applications"
+LABEL version="v1"
+LABEL maintainer="serlohu@upv.es"
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends build-essential cmake vim wget && \
+    apt autoclean -y && \
+    apt autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
+# # Install MKL Oneapi - https://www.intel.com/content/www/us/en/develop/documentation/installation-guide-for-intel-oneapi-toolkits-linux/top/installation/install-using-package-managers/apt.html#apt
+# # Download the key to system keyring
+# RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+# # add signed entry to apt sources and configure the APT client to use Intel repository:
+# RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
+
+# RUN apt update && \
+#     apt install -y intel-basekit-2021.4.0
+# # 2022.2.0
+
+RUN mkdir -p /uvaftle
+
+# Copy CPU sources
+COPY CPU /uvaftle/CPU
+RUN mkdir -p /uvaftle/CPU/bin
+
+# Build CPU
+RUN cd /uvaftle/CPU/ && make
+
+# Copy CUDA sources
+COPY CUDA /uvaftle/CUDA
+RUN mkdir -p /uvaftle/CUDA/bin
+
+# Build CUDA
+RUN cd /uvaftle/CUDA/ && make
+
+# Container init directory
+WORKDIR /uvaftle
