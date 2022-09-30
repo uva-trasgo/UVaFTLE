@@ -26,7 +26,7 @@ permissions:
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
 
-  build-11.7.1-devel-ubuntu22.04:
+  build-devel-ubuntu2204-11_7_1:
     runs-on: ubuntu-latest
     env: 
       IMAGE_TAG: 11.7.1-devel-ubuntu22.04
@@ -101,7 +101,7 @@ jobs:
           labels: ${{ steps.docker-meta-amd64.outputs.labels }}
           build-args: |
             nvidia_image_tag=${{ env.IMAGE_TAG }}
-  build-11.7.1-runtime-ubuntu22.04:
+  build-runtime-ubuntu2204-11_7_1:
     runs-on: ubuntu-latest
     env: 
       IMAGE_TAG: 11.7.1-runtime-ubuntu22.04
@@ -177,7 +177,7 @@ jobs:
           build-args: |
             nvidia_image_tag=${{ env.IMAGE_TAG }}
 
-  build-11.7.1-devel-ubuntu20.04:
+  build-devel-ubuntu2004-11_7_1:
     runs-on: ubuntu-latest
     env: 
       IMAGE_TAG: 11.7.1-devel-ubuntu20.04
@@ -252,7 +252,7 @@ jobs:
           labels: ${{ steps.docker-meta-amd64.outputs.labels }}
           build-args: |
             nvidia_image_tag=${{ env.IMAGE_TAG }}
-  build-11.7.1-runtime-ubuntu20.04:
+  build-runtime-ubuntu2004-11_7_1:
     runs-on: ubuntu-latest
     env: 
       IMAGE_TAG: 11.7.1-runtime-ubuntu20.04
@@ -328,7 +328,7 @@ jobs:
           build-args: |
             nvidia_image_tag=${{ env.IMAGE_TAG }}
 
-  build-10.2-devel-ubuntu18.04:
+  build-devel-ubuntu1804-10_2:
     runs-on: ubuntu-latest
     env: 
       IMAGE_TAG: 10.2-devel-ubuntu18.04
@@ -403,7 +403,7 @@ jobs:
           labels: ${{ steps.docker-meta-amd64.outputs.labels }}
           build-args: |
             nvidia_image_tag=${{ env.IMAGE_TAG }}
-  build-10.2-runtime-ubuntu18.04:
+  build-runtime-ubuntu1804-10_2:
     runs-on: ubuntu-latest
     env: 
       IMAGE_TAG: 10.2-devel-ubuntu18.04
@@ -479,7 +479,7 @@ jobs:
           build-args: |
             nvidia_image_tag=${{ env.IMAGE_TAG }}
 
-  build-10.1-devel-ubuntu18.04:
+  build-devel-ubuntu1804-10_1:
     runs-on: ubuntu-latest
     env: 
       IMAGE_TAG: 10.1-devel-ubuntu18.04
@@ -554,7 +554,7 @@ jobs:
           labels: ${{ steps.docker-meta-amd64.outputs.labels }}
           build-args: |
             nvidia_image_tag=${{ env.IMAGE_TAG }}
-  build-10.1-runtime-ubuntu18.04:
+  build-runtime-ubuntu1804-10_1:
     runs-on: ubuntu-latest
     env: 
       IMAGE_TAG: 10.1-devel-ubuntu18.04
