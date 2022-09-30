@@ -1,4 +1,4 @@
-name: Build mesh generation docker container
+name: Mesh Generation Docker Image
 
 # Controls when the workflow will run
 on:
