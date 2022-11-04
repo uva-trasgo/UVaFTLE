@@ -211,18 +211,21 @@ def main_2D (args):
     print2file = 1
     output_file = args.out_file
 
-    steps = int(args.steps_axis)
-    x_ = np.linspace(0, 2, steps)
-    y_ = np.linspace(0, 1, steps)
+    print("x_steps_axis -> %d" % int(args.x_steps_axis))
+    print("y_steps_axis -> %d" % int(args.y_steps_axis))
+
+    x_ = np.linspace(0, 2, int(args.x_steps_axis))
+    y_ = np.linspace(0, 1, int(args.y_steps_axis))
     t_ = np.linspace(0, 10, 100)
     xx, yy, zz = np.meshgrid(x_, y_, [0])
 
     points = np.column_stack((xx.ravel(order="F"),
                             yy.ravel(order="F"),
                             zz.ravel(order="F")))
+    print("Number of points: %d" % len(points), flush=True)
 
     cloud = pv.PolyData(points)
-    print("Constructing 2D Delaunay triagution of the mesh...", flush=True)
+    print("Constructing 2D Delaunay triangulation of the mesh...", flush=True)
     mesh = cloud.delaunay_2d()
 
     xg, yg, tg = np.meshgrid(x_, y_, t_, indexing='ij')
@@ -257,11 +260,8 @@ def main_2D (args):
            fv.write(str(vel[index*len(points)+jindex][1])+'\n')
 
     faces = mesh.faces.reshape((-1,4))[:, 1:4]
-    ff.write(str(len(faces))+'\n')
-    print("TOTAL points:")
-    print(len(points))
-    print("TOTAL faces:")
-    print(len(faces))
+    print("Number of faces: %d" % len(faces) , flush=True )
+    ff.write(str(len(faces))+'\n')    
     for index in range(len(faces)):
         ff.write(str(faces[index][0])+'\n')
         ff.write(str(faces[index][1])+'\n')
@@ -321,10 +321,13 @@ def main_3D (args):
     print2file = 1
     output_file = args.out_file
 
-    steps = int(args.steps_axis)
-    x_ = np.linspace(0, 1, steps)
-    y_ = np.linspace(0, 1, steps)
-    z_ = np.linspace(0, 1, steps)
+    print("x_steps_axis -> %d" % int(args.x_steps_axis))
+    print("y_steps_axis -> %d" % int(args.y_steps_axis))
+    print("z_steps_axis -> %d" % int(args.z_steps_axis))
+
+    x_ = np.linspace(0, 1, int(args.x_steps_axis))
+    y_ = np.linspace(0, 1, int(args.y_steps_axis))
+    z_ = np.linspace(0, 1, int(args.z_steps_axis))
     t_ = np.linspace(0, 10, 20)
     xx, yy, zz = np.meshgrid(x_, y_, z_)
 
@@ -332,8 +335,9 @@ def main_3D (args):
                             yy.ravel(order="F"),
                             zz.ravel(order="F")))
 
+    print("Number of points: %d" % len(points), flush=True)
     cloud = pv.PolyData(points)
-    print("Constructing 3D Delaunay triagution of the mesh...", flush=True)
+    print("Constructing 3D Delaunay triangulation of the mesh...", flush=True)
     mesh = cloud.delaunay_3d()
     mesh = mesh.point_data_to_cell_data()
     #test = mesh.poin
@@ -411,6 +415,7 @@ def main_3D (args):
     #     tetrahedra[i][2] = results[i][2]
     #     tetrahedra[i][3] = results[i][3]
 
+    print("Number of tetrahedra: %d" % len(tetrahedra) , flush=True )
     '''
     for i in range(n_cells):
         cell = mesh.extract_cells(i)
@@ -509,16 +514,27 @@ if __name__ == '__main__':
     parser.add_argument(metavar="<coords_file>", dest="coords_file", help="File path where mesh coordinates will be stored", default="coords.txt")
     parser.add_argument(metavar="<faces_file>", dest="faces_file", help="File path where mesh faces will be stored", default="faces.txt")
     parser.add_argument(metavar="<times_file>", dest="times_file", help="File path where time data will be stored", default="times.txt")
-    parser.add_argument(metavar="<vel_file>", dest="vel_file", help="File path where velocity data will be stored", default="times.txt")
+    parser.add_argument(metavar="<vel_file>", dest="vel_file", help="File path where velocity data will be stored", default="vel.txt")
     parser.add_argument(metavar="<nsteps_rk4>", dest="nsteps_rk4", help="Number of iterations to perform in the RK4 call")
     parser.add_argument(metavar="<sched_policy>", dest="sched_policy", help=COMPUTE_FLOWMAP_POLICIES_HELP, choices=COMPUTE_FLOWMAP_POLICIES)
     parser.add_argument(metavar="<chunk_size>", dest="chunk_size", help="Size of the chunk for the chosen scheduling policy")
     parser.add_argument(metavar="<output_file>", dest="out_file", help="File path where flowmap data will be stored", default="flowmap.txt")
-    #parser.add_argument(metavar="<flowmap_file>", dest="flowmap_file", help="File path where time data will be stored", default="times.txt")
-    parser.add_argument(metavar="<steps_axis>", dest="steps_axis", help="Steps in each axis (for linspace)")
-    parser.add_argument(metavar="<num_cores>", dest="num_cores", help="Threads to use")
+    parser.add_argument(metavar="<num_cores>", dest="num_cores", help="Threads to use", type=int)
+    parser.add_argument(metavar="<x_steps_axis>", dest="x_steps_axis", help="Steps in X axis (for linspace)",  default=-1, type=int )
+    parser.add_argument(metavar="<y_steps_axis>", dest="y_steps_axis", help="Steps in Y axis (for linspace)", default=-1, type=int )
+    parser.add_argument(metavar="<z_steps_axis>", dest="z_steps_axis", help="Steps in Z axis (for linspace)", default=-1, nargs='?', type=int)
+
 
     args = parser.parse_args()
+    
+    # Ensure z_steps_axis is defined for 3D
+    if args.x_steps_axis <= 0 or args.y_steps_axis <= 0:
+        print("ERROR: <x_steps_axis> and <y_steps_axis> must be positive integers")
+        sys.exit()
+    if args.nDim == "3D" and args.z_steps_axis == -1:
+        print("ERROR: you must define <z_steps_axis> for 3D")
+        parser.print_help()
+        sys.exit()
 
     
     eval("main_"+args.nDim)(args)
