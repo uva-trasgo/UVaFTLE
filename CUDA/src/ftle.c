@@ -236,10 +236,7 @@ int main(int argc, char *argv[]) {
         double time;
         int size =   omp_get_num_threads()==1 ?   0: nPoints / omp_get_num_threads();
         int localStride = size * omp_get_thread_num();
-        //int nDevices;
-        //cudaGetDeviceCount(&nDevices); 
-        //printf("Number of devices: %d   Number of blocks %d  size %d  localStrade %d\n", nDevices, grid_numCoords.x, size, localStride);
-
+        
         /* Solve FTLE */
         cudaDeviceSynchronize();
         gettimeofday(&start, NULL);
@@ -312,6 +309,7 @@ int main(int argc, char *argv[]) {
         fflush(stdout);
     }
 
+    /* Show execution time */
     maxTime = times[0];
     for ( int i = 1; i < numThreads; i++){
         if (times[i] > maxTime)
