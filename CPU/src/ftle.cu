@@ -146,15 +146,17 @@ int main(int argc, char *argv[]) {
     
     /* Solve FTLE */
 	nth = atoi(argv[6]);
-	printf("\nComputing FTLE...                                 ");
     fflush(stdout);
 	gettimeofday(&start, NULL);
 
 #ifdef DYNAMIC
+    printf("\nComputing FTLE (dynamic scheduler)...                     ");
     #pragma omp parallel for default(none) shared(nDim, nPoints, nFaces, nVertsPerFace, coords, flowmap, faces, nFacesPerPoint, facesPerPoint, ftl_matrix, logSqrt, t_eval) num_threads(nth) schedule(dynamic)
 #elif defined GUIDED
+    printf("\nComputing FTLE (guided scheduler)...                     ");
     #pragma omp parallel for default(none) shared(nDim, nPoints, nFaces, nVertsPerFace, coords, flowmap, faces, nFacesPerPoint, facesPerPoint, ftl_matrix, logSqrt, t_eval) num_threads(nth) schedule(guided)
 #else
+     printf("\nComputing FTLE (static scheduler)...                     ");
     #pragma omp parallel for default(none) shared(nDim, nPoints, nFaces, nVertsPerFace, coords, flowmap, faces, nFacesPerPoint, facesPerPoint, ftl_matrix, logSqrt, t_eval) num_threads(nth) schedule(static)
 #endif
 	for ( int ip = 0; ip < nPoints; ip++ )
