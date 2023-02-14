@@ -1,3 +1,7 @@
+<p align="center">
+    <img src="UVaFTLE_Logo.png" alt="UvaFTLE logo">
+</p>
+
 # UVaFTLE: Lagrangian finite time Lyapunov exponent extraction for fluid dynamic applications
 
 UVaFTLE is an open source C implementation for determining Lagrangian Coherent Structures
@@ -52,7 +56,7 @@ $ export OMP_NUM_THREADS=2
 After that, you can run UVaFTLE running this command:
 
 ```bash
-$ ftle_cuda <nDim> <coords_file> <faces_file> <flowmap_file> <t_eval>
+$ ftle_cuda <nDim> <coords_file> <faces_file> <flowmap_file> <t_eval> <print2file>
 ```
 where: 
 
