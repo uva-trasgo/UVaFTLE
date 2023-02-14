@@ -26,8 +26,8 @@ typedef struct Mesh {
 } mesh_t;
 #endif
 
-void compute_gradient_2D ( int numCoords, int nVertsPerFace, double *coords, double *flowmap, int *faces, int *nFacesPerPoint, int *facesPerPoint, double *ftl_matrix );
-void compute_gradient_3D ( int numCoords, int nVertsPerFace, double *coords, double *flowmap, int *faces, int *nFacesPerPoint, int *facesPerPoint, double *ftl_matrix );
+void compute_gradient_2D ( int ip, int nVertsPerFace, double *coords, double *flowmap, int *faces, int *nFacesPerPoint, int *facesPerPoint, double *log_sqrt, double T );
+void compute_gradient_3D ( int ip, int nVertsPerFace, double *coords, double *flowmap, int *faces, int *nFacesPerPoint, int *facesPerPoint, double *log_sqrt, double T );
 double log_sqrt ( double T, double eigen );
 double max_solve_3rd_degree_eq ( double a, double b, double c, double d);
 double max_eigen_2D ( double A10, double A11, double A20, double A21 );
