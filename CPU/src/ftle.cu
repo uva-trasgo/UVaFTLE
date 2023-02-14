@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
 	// Check usage
 	if (argc != 8)
 	{
-		printf("USAGE: ./executable <nDim> <coords_file> <faces_file> <flowmap_file> <t_eval> <nth> <print2file>\n");
+		printf("USAGE: %s <nDim> <coords_file> <faces_file> <flowmap_file> <t_eval> <nth> <print2file>\n", argv[0]);
 		printf("\texecutable:    compute_ftle\n");
 		printf("\tnDim:    dimensions of the space (2D/3D)\n");
 		printf("\tcoords_file:   file where mesh coordinates are stored.\n");
@@ -150,7 +150,13 @@ int main(int argc, char *argv[]) {
     fflush(stdout);
 	gettimeofday(&start, NULL);
 
+#ifdef DYNAMIC
+    #pragma omp parallel for default(none) shared(nDim, nPoints, nFaces, nVertsPerFace, coords, flowmap, faces, nFacesPerPoint, facesPerPoint, ftl_matrix, logSqrt, t_eval) num_threads(nth) schedule(dynamic)
+#elif defined GUIDED
+    #pragma omp parallel for default(none) shared(nDim, nPoints, nFaces, nVertsPerFace, coords, flowmap, faces, nFacesPerPoint, facesPerPoint, ftl_matrix, logSqrt, t_eval) num_threads(nth) schedule(guided)
+#else
     #pragma omp parallel for default(none) shared(nDim, nPoints, nFaces, nVertsPerFace, coords, flowmap, faces, nFacesPerPoint, facesPerPoint, ftl_matrix, logSqrt, t_eval) num_threads(nth) schedule(static)
+#endif
 	for ( int ip = 0; ip < nPoints; ip++ )
 	{
     	/* Compute gradient, tensors and ATxA based on neighbors flowmap values, then get the max eigenvalue */

@@ -26,20 +26,38 @@ endif()
 
 enable_language(CUDA)
 
+if(${CMAKE_VERSION} VERSION_GREATER "3.17") 
+	IF(NOT CUDA_ARCH)
+		message("CUDA_ARCH not specified. Compiling for 75 architecture")
+		SET(CUDA_ARCH "75")
+	ELSE()
+		message("Compiling for ${CUDA_ARCH} architecture(s)")
+	ENDIF()
+ELSE()
+	UNSET(CUDA_ARCH)
+ENDIF()
+
 SET(CFLAGS "-O3")
 SET(ZEN3_FLAGS "-march=znver3")
 SET(OMP_FLAGS "-Xcompiler -fopenmp")
 
 SET(CPU_DIR "CPU/src")
-SET(CPU_COMMON_SRC ${CPU_DIR}/preprocess.cu ${CPU_DIR}/arithmetic.cu)
+SET(CPU_SRC ${CPU_DIR}/ftle.cu ${CPU_DIR}/preprocess.cu ${CPU_DIR}/arithmetic.cu)
 SET(CPU_FLAGS "${CFLAGS} ${OMP_FLAGS} -I./CPU/include")
  
 #CPU versions
-ADD_EXECUTABLE(ftle_static ${CPU_DIR}/ftle_static.cu ${CPU_COMMON_SRC})
-ADD_EXECUTABLE(ftle_dynamic ${CPU_DIR}/ftle_dynamic.cu ${CPU_COMMON_SRC})
-ADD_EXECUTABLE(ftle_guided ${CPU_DIR}/ftle_guided.cu ${CPU_COMMON_SRC})
+ADD_EXECUTABLE(ftle_static  ${CPU_SRC})
+ADD_EXECUTABLE(ftle_dynamic ${CPU_SRC})
+ADD_EXECUTABLE(ftle_guided  ${CPU_SRC})
 
-SET_TARGET_PROPERTIES(ftle_static ftle_dynamic ftle_guided  PROPERTIES COMPILE_FLAGS ${CPU_FLAGS})
+SET_TARGET_PROPERTIES(ftle_static PROPERTIES COMPILE_FLAGS ${CPU_FLAGS})
+SET_TARGET_PROPERTIES(ftle_dynamic PROPERTIES COMPILE_FLAGS "${CPU_FLAGS} -DDYNAMIC")
+SET_TARGET_PROPERTIES(ftle_guided  PROPERTIES COMPILE_FLAGS "${CPU_FLAGS} -DGUIDED")
+
+IF(CUDA_ARCH)
+	SET_TARGET_PROPERTIES(ftle_static ftle_dynamic ftle_guided  PROPERTIES CUDA_ARCHITECTURES OFF)
+ENDIF()
+
 
 TARGET_LINK_LIBRARIES(ftle_static  m OpenMP::OpenMP_C)
 TARGET_LINK_LIBRARIES(ftle_dynamic m OpenMP::OpenMP_C)
@@ -53,7 +71,11 @@ SET(CUDA_FLAGS "${CFLAGS} ${OMP_FLAGS} -I./CUDA/include")
 
 ADD_EXECUTABLE(ftle_cuda ${CUDA_DIR}/ftle.cu ${CUDA_COMMON_SRC})
 SET_TARGET_PROPERTIES(ftle_cuda  PROPERTIES COMPILE_FLAGS ${CUDA_FLAGS})
-TARGET_LINK_LIBRARIES(ftle_cuda m OpenMP::OpenMP_C)
 
+IF(CUDA_ARCH)
+	SET_TARGET_PROPERTIES(ftle_cuda  PROPERTIES CUDA_ARCHITECTURES ${CUDA_ARCH})
+ENDIF()
+
+TARGET_LINK_LIBRARIES(ftle_cuda m OpenMP::OpenMP_C)
 
 INSTALL(TARGETS ftle_cuda ftle_static ftle_dynamic ftle_guided  RUNTIME DESTINATION bin)

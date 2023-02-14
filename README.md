@@ -26,9 +26,10 @@ $ cmake . -DCMAKE_INSTALL_PREFIX="installation_folder"
 $ make
 $ make install
 ```
+Take into account that:
 
-If the installation folder is not set using -DCMAKE_INSTALL_PREFIX,  the executables are installed in
-*UVaFTLE/bin*.
+* If the installation folder is not set using -DCMAKE_INSTALL_PREFIX,  the executables are installed in	*UVaFTLE/bin*. 
+* If your version of CMake is 3.18 or greater, you should specify the cuda  arch using the option  "-DCUDA_ARCH=arch_code". In other case, the arch 75 is selected by default.  In order to identify your architecture, you could use [this quick quide](https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/)
 
 If you have an older version of cmake, UVaFTLE can be compiled using the
 makefiles, but the *bin* directories must be created explicitly:
