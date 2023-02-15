@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.8)
 
 
-PROJECT(UVaFTLE C)
+PROJECT(UVaFTLE C CXX)
 
 set (CMAKE_C_COMPILER "nvcc")
 
@@ -77,5 +77,69 @@ IF(CUDA_ARCH)
 ENDIF()
 
 TARGET_LINK_LIBRARIES(ftle_cuda m OpenMP::OpenMP_C)
+
+
+# SYCL Implementation
+
+IF(WITH_SYCL_CPU STREQUAL "yes"  OR WITH_SYCL_CUDA STREQUAL "yes" OR WITH_SYCL_ROCM STREQUAL "yes")
+	set(CMAKE_VERBOSE_MAKEFILE ON)
+	find_program(SYCL_CC "syclcc")
+	IF(NOT SYCL_CC)
+		message(FATAL_ERROR "sycl compiler not found")
+	ENDIF()
+	set (CMAKE_CXX_COMPILER "syclcc")
+	set (CMAKE_CXX_LINKER "syclcc")
+	
+
+	#NOTE FOR USERS: manually specify this vars editing CMakeLists.txt or
+	#manually inicializate when cmake is invoked
+	IF(NOT BOOST_DIR)
+		message("SYCL enabled but BOOST_DIR not specified (required for CUDA and ROCM). Setting by default to $ENV{HOME}/local/boost")
+		SET(BOOST_DIR "$ENV{HOME}/local/boost")
+	ENDIF()
+
+        IF(NOT ROCM_DIR AND WITH_SYCL_ROCM STREQUAL "yes")
+                SET(ROCM_DIR "/opt/rocm-4.2.0")
+                message("SYCL with RoCM enabled but ROCM_DIR not specified . Setting by default to ${ROCM_DIR}")
+        ENDIF()
+
+
+
+	SET(SYCL_SRCDIR "SYCL/src")
+	SET(SYCL_SRC  ${SYCL_SRCDIR}/preprocess.cpp
+		${SYCL_SRCDIR}/arithmetic.cpp ${SYCL_SRCDIR}/ftle.cpp)
+
+	IF(WITH_SYCL_CPU STREQUAL "yes")
+                SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include --hipsycl-targets=omp --hipsycl-cpu-cxx=/home/trasgo/local/llvm12/bin/clang++")
+                SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib --hipsycl-targets=omp --hipsycl-cpu-cxx=/home/trasgo/local/llvm12/bin/clang++")
+                ADD_EXECUTABLE(ftle_sycl_cpu  ${SYCL_SRC})
+                SET_TARGET_PROPERTIES(ftle_sycl_cpu  PROPERTIES COMPILE_FLAGS  ${SYCL_COMPILE_FLAGS})
+                SET_TARGET_PROPERTIES(ftle_sycl_cpu  PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
+                INSTALL(TARGETS ftle_sycl_cpu RUNTIME DESTINATION bin)
+
+	ENDIF()
+	
+	IF(WITH_SYCL_CUDA STREQUAL "yes")
+		#TODO configurar arquitectura en CmakeLIST
+		SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include --hipsycl-gpu-arch=sm_60 -DGPU_DEVICE")
+		SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib --hipsycl-gpu-arch=sm_60")
+		ADD_EXECUTABLE(ftle_sycl_cuda  ${SYCL_SRC})
+		SET_TARGET_PROPERTIES(ftle_sycl_cuda  PROPERTIES COMPILE_FLAGS 	${SYCL_COMPILE_FLAGS})
+		SET_TARGET_PROPERTIES(ftle_sycl_cuda  PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
+		INSTALL(TARGETS ftle_sycl_cuda RUNTIME DESTINATION bin)
+	ENDIF()
+
+	IF(WITH_SYCL_ROCM STREQUAL "yes")
+		#TODO configurar arquitectura en CmakeLIST
+		SET(ROCM_COMMON_FLAGS "--rocm-path=${ROCM_DIR} --hipsycl-platform=rocm --hipsycl-gpu-arch=gfx900 -L${ROCM_DIR}/lib -L${ROCM_DIR}/lib64 -I/opt/rocm-4.1.0/hip/include/hip/")
+		SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include -DGPU_DEVICE ${ROCM_COMMON_FLAGS}")
+		SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib ${ROCM_COMMON_FLAGS} -lm")
+		ADD_EXECUTABLE(ftle_sycl_rocm  ${SYCL_SRC})
+		SET_TARGET_PROPERTIES(ftle_sycl_rocm  PROPERTIES COMPILE_FLAGS 	${SYCL_COMPILE_FLAGS})
+		SET_TARGET_PROPERTIES(ftle_sycl_rocm  PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
+		INSTALL(TARGETS ftle_sycl_rocm RUNTIME DESTINATION bin)
+	ENDIF()
+	
+ENDIF()
 
 INSTALL(TARGETS ftle_cuda ftle_static ftle_dynamic ftle_guided  RUNTIME DESTINATION bin)
