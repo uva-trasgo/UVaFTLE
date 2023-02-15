@@ -22,9 +22,9 @@ all: compute_ftle
 # -------------------------- #
 
 compute_ftle:
-	${CC} ${DIR_src}/ftle_static.cu ${SRC} ${FLAG_OMP} -I ./include -o ${DIR_bin}/ftle_static ${FLAGS}
-	${CC} ${DIR_src}/ftle_dynamic.cu ${SRC} ${FLAG_OMP} -I ./include -o ${DIR_bin}/ftle_dynamic ${FLAGS}
-	${CC} ${DIR_src}/ftle_guided.cu ${SRC} ${FLAG_OMP} -I ./include -o ${DIR_bin}/ftle_guided ${FLAGS}
+	${CC} ${DIR_src}/ftle.cu ${SRC} ${FLAG_OMP} -I ./include -o ${DIR_bin}/ftle_static ${FLAGS}
+	${CC} ${DIR_src}/ftle.cu ${SRC} ${FLAG_OMP} -DDYNAMIC -I ./include -o ${DIR_bin}/ftle_dynamic ${FLAGS}
+	${CC} ${DIR_src}/ftle.cu ${SRC} ${FLAG_OMP} -DGUIDED -I ./include -o ${DIR_bin}/ftle_guided ${FLAGS}
 
 clean:
 	cd ${DIR_bin} && rm ${OBJS} && cd ..
