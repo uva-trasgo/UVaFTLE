@@ -178,7 +178,7 @@ int main(int argc, char *argv[]) {
     {
         numThreads = omp_get_num_threads();
         cudaError_t error;
-        double *d_w, *d_logSqrt;
+        double *d_logSqrt;
         double *d_A_ei, *d_W_ei, *d_ftl_matrix;
         double *d_gra1, *d_gra2, *d_gra3;
         double *d_cg_tensor1, *d_cg_tensor2, *d_cg_tensor3;
@@ -200,7 +200,6 @@ int main(int argc, char *argv[]) {
 
         /* Allocate additional memory at the GPU */
         cudaMalloc( &d_nFacesPerPoint, sizeof(int)    * nPoints);
-        cudaMalloc( &d_w,              sizeof(double) * nPoints * nDim );
         cudaMalloc( &d_logSqrt,        sizeof(double) * nPoints);
         cudaMalloc ((void**)&d_res, sizeof(double) * nPoints * nDim * nDim); 
         cudaMalloc( &d_gra1, sizeof(double) * nPoints * nDim );
@@ -275,7 +274,6 @@ int main(int argc, char *argv[]) {
         cudaFree(d_faces);
         cudaFree(d_nFacesPerPoint);
         cudaFree(d_facesPerPoint);
-        cudaFree(d_w);
         cudaFree(d_logSqrt);
         cudaFree(d_ftl_matrix);
         cudaFree(d_gra1);

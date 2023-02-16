@@ -55,10 +55,7 @@ int main(int argc, char *argv[]) {
 	int    *nFacesPerPoint, *d2_nFacesPerPoint;
 	int    *facesPerPoint, *d2_facesPerPoint;
 
-	double *w;
 	double *logSqrt;
-
-	double *ftl_matrix;
 
 	/* Initialize mesh original information */
 	nDim = atoi(argv[1]);
@@ -119,9 +116,7 @@ int main(int argc, char *argv[]) {
     fflush(stdout);
 
     /* Allocate additional memory at the CPU */
-	ftl_matrix     = (double*) malloc( sizeof(double) * nPoints * nDim * nDim  );   
 	logSqrt        = (double*) malloc( sizeof(double) * nPoints);   
-	w              = (double*) malloc( sizeof(double) * nPoints * nDim );
     nFacesPerPoint = (int *) malloc( sizeof(int) * nPoints ); /* REMARK: nFacesPerPoint accumulates previous nFacesPerPoint */
 
 /*
@@ -151,13 +146,13 @@ int main(int argc, char *argv[]) {
 
 #ifdef DYNAMIC
     printf("\nComputing FTLE (dynamic scheduler)...                     ");
-    #pragma omp parallel for default(none) shared(nDim, nPoints, nFaces, nVertsPerFace, coords, flowmap, faces, nFacesPerPoint, facesPerPoint, ftl_matrix, logSqrt, t_eval) num_threads(nth) schedule(dynamic)
+    #pragma omp parallel for default(none) shared(nDim, nPoints, nFaces, nVertsPerFace, coords, flowmap, faces, nFacesPerPoint, facesPerPoint, logSqrt, t_eval) num_threads(nth) schedule(dynamic)
 #elif defined GUIDED
     printf("\nComputing FTLE (guided scheduler)...                     ");
-    #pragma omp parallel for default(none) shared(nDim, nPoints, nFaces, nVertsPerFace, coords, flowmap, faces, nFacesPerPoint, facesPerPoint, ftl_matrix, logSqrt, t_eval) num_threads(nth) schedule(guided)
+    #pragma omp parallel for default(none) shared(nDim, nPoints, nFaces, nVertsPerFace, coords, flowmap, faces, nFacesPerPoint, facesPerPoint,  logSqrt, t_eval) num_threads(nth) schedule(guided)
 #else
      printf("\nComputing FTLE (static scheduler)...                     ");
-    #pragma omp parallel for default(none) shared(nDim, nPoints, nFaces, nVertsPerFace, coords, flowmap, faces, nFacesPerPoint, facesPerPoint, ftl_matrix, logSqrt, t_eval) num_threads(nth) schedule(static)
+    #pragma omp parallel for default(none) shared(nDim, nPoints, nFaces, nVertsPerFace, coords, flowmap, faces, nFacesPerPoint, facesPerPoint, logSqrt, t_eval) num_threads(nth) schedule(static)
 #endif
 	for ( int ip = 0; ip < nPoints; ip++ )
 	{
@@ -206,9 +201,7 @@ int main(int argc, char *argv[]) {
 	free(faces);
 	free(nFacesPerPoint);
 	free(facesPerPoint);
-	free(w);
 	free(logSqrt);
-	free(ftl_matrix);
 
 	return 0;
 }

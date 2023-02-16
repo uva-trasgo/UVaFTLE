@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <CL/sycl.hpp>
+using namespace cl::sycl;
 #ifndef STRUCTS_H
 #define STRUCTS_H
 typedef struct Face {
@@ -29,5 +30,4 @@ void read_coordinates ( char *filename, int nDim, int npoints, double *coords );
 void read_faces ( char *filename, int nDim, int nVertsPerFace, int nfaces, int *faces );
 void read_flowmap ( char *filename, int nDims, int nPoints, double *flowmap );
 void create_nFacesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVertsPerFace, int *faces, int *nFacesPerPoint );
-void create_facesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVertsPerFace, int *faces, int *nFacesPerPoint, int *facesPerPoint );
-void create_facesPerPoint_vector_GPU ( int nDim, int nPoints, int nFaces, int nVertsPerFace, int *faces, int *nFacesPerPoint, int *facesPerPoint );
+void create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int nFaces, int nVertsPerFace, cl::sycl::buffer<int, 1> *b_faces, cl::sycl::buffer<int, 1> *b_nFacesPerPoint, cl::sycl::buffer<int, 1> *b_facesPerPoint );
