@@ -150,13 +150,13 @@ int main(int argc, char *argv[]) {
 	gettimeofday(&start, NULL);
 
 #ifdef DYNAMIC
-    printf("\nComputing FTLE (dynamic scheduler)...                     ");
+    printf("\nComputing FTLE (dynamic scheduler)...                     "); fflush(stdout);
     #pragma omp parallel for default(none) shared(nDim, nPoints, nFaces, nVertsPerFace, coords, flowmap, faces, nFacesPerPoint, facesPerPoint, ftl_matrix, logSqrt, t_eval) num_threads(nth) schedule(dynamic)
 #elif defined GUIDED
-    printf("\nComputing FTLE (guided scheduler)...                     ");
+    printf("\nComputing FTLE (guided scheduler)...                     "); fflush(stdout);
     #pragma omp parallel for default(none) shared(nDim, nPoints, nFaces, nVertsPerFace, coords, flowmap, faces, nFacesPerPoint, facesPerPoint, ftl_matrix, logSqrt, t_eval) num_threads(nth) schedule(guided)
 #else
-     printf("\nComputing FTLE (static scheduler)...                     ");
+     printf("\nComputing FTLE (static scheduler)...                     "); fflush(stdout);
     #pragma omp parallel for default(none) shared(nDim, nPoints, nFaces, nVertsPerFace, coords, flowmap, faces, nFacesPerPoint, facesPerPoint, ftl_matrix, logSqrt, t_eval) num_threads(nth) schedule(static)
 #endif
 	for ( int ip = 0; ip < nPoints; ip++ )
