@@ -159,10 +159,8 @@ int main(int argc, char *argv[]) {
         /* Compute gradient, tensors and ATxA based on neighbors flowmap values, then get the max eigenvalue */
 		if ( nDim == 2 )
         	    compute_gradient_2D ( &s_queue, nPoints, nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, &b_facesPerPoint, &b_logSqrt, t_eval);
-		/*else
-        	    compute_gradient_3D  ( ip, nVertsPerFace, 
-		        coords, flowmap, faces, nFacesPerPoint, facesPerPoint, 
-                        logSqrt, t_eval);*/
+		else
+        	    compute_gradient_3D  ( &s_queue, nPoints, nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, &b_facesPerPoint, &b_logSqrt, t_eval);
 	}
 	/* Time */
 	gettimeofday(&end, NULL);
