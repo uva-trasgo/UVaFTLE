@@ -2,7 +2,6 @@
 
 double max_solve_3rd_degree_eq ( double a, double b, double c, double d)
 {
-	return 0;
 	double x1, x2, x3;
 	double A   = b*b - 3*a*c;
 	double B   = b*c - 9*a*d;
@@ -326,11 +325,11 @@ void compute_gradient_3D (queue* q,  int nPoints, int nVertsPerFace, cl::sycl::b
 			ftle_matrix[0] = gra10 * gra10 + gra20 * gra20 + gra30 * gra30;
 			ftle_matrix[1] = gra10 * gra11 + gra20 * gra21 + gra30 * gra31;
 			ftle_matrix[2] = gra10 * gra12 + gra20 * gra22 + gra30 * gra32;
-			ftle_matrix[3] = ftle_matrix[ip * nDim * nDim + 1]; //gra20 * gra10 + gra21 * gra11 + gra22 * gra12;
+			ftle_matrix[3] = ftle_matrix[1];
 			ftle_matrix[4] = gra11 * gra11 + gra21 * gra21 + gra31 * gra31;
 			ftle_matrix[5] = gra11 * gra12 + gra11 * gra22 + gra31 * gra32;
-			ftle_matrix[6] = ftle_matrix[ip * nDim * nDim + 2]; //gra30 * gra10 + gra31 * gra11 + gra32 * gra12;
-			ftle_matrix[7] = ftle_matrix[ip * nDim * nDim + 5]; //gra30 * gra20 + gra31 * gra21 + gra32 * gra22;
+			ftle_matrix[6] = ftle_matrix[2];
+			ftle_matrix[7] = ftle_matrix[5];
 			ftle_matrix[8] = gra12 * gra12 + gra22 * gra22 + gra32 * gra32;
 
 			// Store copy to later multiply by transpose 
