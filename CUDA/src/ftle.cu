@@ -160,7 +160,7 @@ int main(int argc, char *argv[]) {
     nFacesPerPoint = (int *) malloc( sizeof(int) * nPoints ); /* REMARK: nFacesPerPoint accumulates previous nFacesPerPoint */
 #ifdef PINNED
     cudaHostAlloc( (void **) &logSqrt, sizeof(double) * nPoints,cudaHostAllocMapped);
-#elif
+#else
     logSqrt        = (double*) malloc( sizeof(double) * nPoints);    
 #endif
 
