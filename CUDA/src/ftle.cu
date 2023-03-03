@@ -14,6 +14,7 @@
 #include "preprocess.h"
 
 #define blockSize 512
+#define Num_Streams 1
 
 /* Only for NVIDIA GPU devices */
 void show_GPU_devices_info(int nDevices)
@@ -157,6 +158,13 @@ int main(int argc, char *argv[]) {
     /* Allocate additional memory at the CPU */    
     logSqrt        = (double*) malloc( sizeof(double) * nPoints);       
     nFacesPerPoint = (int *) malloc( sizeof(int) * nPoints ); /* REMARK: nFacesPerPoint accumulates previous nFacesPerPoint */
+#ifdef PINNED
+    cudaHostAlloc( (void **) &logSqrt, sizeof(double) * nPoints,cudaHostAllocMapped);
+#elif
+    logSqrt        = (double*) malloc( sizeof(double) * nPoints);    
+#endif
+
+
 
     /* Assign faces to vertices and generate nFacesPerPoint and facesPerPoint GPU vectors */
     create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
@@ -235,12 +243,17 @@ int main(int argc, char *argv[]) {
         double time;
         int size =   omp_get_num_threads()==1 ?   0: nPoints / omp_get_num_threads();
         int localStride = size * omp_get_thread_num();
-        
+
+        cudaStream_t streams[Num_Streams];
+        for (int i = 0; i < Num_Streams; ++i) {cudaStreamCreate(&streams[i]); }
+
         /* Solve FTLE */
         cudaDeviceSynchronize();
         gettimeofday(&start, NULL);
 
         /* STEP 1: compute gradient, tensors and ATxA based on neighbors flowmap values */
+
+#ifndef PINNED
         if ( nDim == 2 )
             gpu_compute_gradient_2D <<<grid_numCoords, block>>> (localStride,
                 nPoints, nVertsPerFace, 
@@ -253,7 +266,23 @@ int main(int argc, char *argv[]) {
                 d_ftl_matrix, d_W_ei, d_logSqrt, t_eval);
 
         cudaMemcpy (&logSqrt[localStride],  &d_logSqrt[localStride], sizeof(double) * (nPoints / omp_get_num_threads()), cudaMemcpyDeviceToHost);
-    
+#else
+        if ( nDim == 2 )
+            gpu_compute_gradient_2D <<<grid_numCoords, block,0, streams[0]>>> (localStride,
+                nPoints, nVertsPerFace, 
+                d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, 
+                d_ftl_matrix, d_W_ei, d_logSqrt, t_eval);
+        else
+            gpu_compute_gradient_3D <<<grid_numCoords, block,0,streams[0]>>> (localStride,
+                nPoints, nVertsPerFace, 
+                d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, 
+                d_ftl_matrix, d_W_ei, d_logSqrt, t_eval);
+
+        cudaMemcpyAsync (&logSqrt[localStride],  &d_logSqrt[localStride], sizeof(double) * (nPoints / omp_get_num_threads()), cudaMemcpyDeviceToHost,streams[0]);
+#endif
+
+
+cudaDeviceSynchronize();
         /* Time */
         gettimeofday(&end, NULL);
 
@@ -287,7 +316,7 @@ int main(int argc, char *argv[]) {
         cudaFree(d_cg_tensor3);
         cudaFree(devInfo);
 
-        cudaDeviceReset();
+        //cudaDeviceReset();
     }
     printf("DONE\n\n");
     printf("--------------------------------------------------------\n");
@@ -321,7 +350,13 @@ int main(int argc, char *argv[]) {
     free(coords);
     free(faces);
     free(flowmap);
+
+#ifndef PINNED            
     free(logSqrt);
+#else
+    cudaFree(logSqrt);
+#endif
+
     free(nFacesPerPoint);
     free(facesPerPoint);
 
