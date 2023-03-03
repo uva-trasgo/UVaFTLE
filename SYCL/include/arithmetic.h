@@ -27,9 +27,9 @@ typedef struct Mesh {
 } mesh_t;
 #endif
 
-void compute_gradient_2D (queue* q,  int nPoints, int nVertsPerFace, cl::sycl::buffer<double, 1> *b_coords, cl::sycl::buffer<double, 1> *b_flowmap, cl::sycl::buffer<int, 1> *b_faces, 
+void compute_gradient_2D (queue* q,  int nPoints, int offset, int nVertsPerFace, cl::sycl::buffer<double, 1> *b_coords, cl::sycl::buffer<double, 1> *b_flowmap, cl::sycl::buffer<int, 1> *b_faces, 
 					cl::sycl::buffer<int, 1> *b_nFacesPerPoint, cl::sycl::buffer<int, 1> *b_facesPerPoint, cl::sycl::buffer<double, 1> *b_log_sqrt, double T );
-void compute_gradient_3D (queue* q,  int nPoints, int nVertsPerFace, cl::sycl::buffer<double, 1> *b_coords, cl::sycl::buffer<double, 1> *b_flowmap, cl::sycl::buffer<int, 1> *b_faces, 
+void compute_gradient_3D (queue* q,  int nPoints, int offset, int nVertsPerFace, cl::sycl::buffer<double, 1> *b_coords, cl::sycl::buffer<double, 1> *b_flowmap, cl::sycl::buffer<int, 1> *b_faces, 
 					cl::sycl::buffer<int, 1> *b_nFacesPerPoint, cl::sycl::buffer<int, 1> *b_facesPerPoint, cl::sycl::buffer<double, 1> *b_log_sqrt, double T );
 double log_sqrt ( double T, double eigen );
 double max_solve_3rd_degree_eq ( double a, double b, double c, double d);

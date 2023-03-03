@@ -43,7 +43,7 @@ SET(OMP_FLAGS "-Xcompiler -fopenmp")
 
 SET(CPU_DIR "CPU/src")
 SET(CPU_SRC ${CPU_DIR}/ftle.cu ${CPU_DIR}/preprocess.cu ${CPU_DIR}/arithmetic.cu)
-SET(CPU_FLAGS "${CFLAGS} ${OMP_FLAGS} -I./CPU/include")
+SET(CPU_FLAGS "${CFLAGS} ${OMP_FLAGS} -I./CPU/include -allow-unsupported-compiler")
  
 #CPU versions
 ADD_EXECUTABLE(ftle_static  ${CPU_SRC})
@@ -66,7 +66,7 @@ TARGET_LINK_LIBRARIES(ftle_guided  m OpenMP::OpenMP_C)
 #CUDA VERSIONS
 SET(CUDA_DIR "CUDA/src")
 SET(CUDA_COMMON_SRC ${CUDA_DIR}/preprocess.cu ${CUDA_DIR}/arithmetic.cu)
-SET(CUDA_FLAGS "${CFLAGS} ${OMP_FLAGS} -I./CUDA/include")
+SET(CUDA_FLAGS "${CFLAGS} ${OMP_FLAGS} -I./CUDA/include -allow-unsupported-compiler")
 
 
 ADD_EXECUTABLE(ftle_cuda ${CUDA_DIR}/ftle.cu ${CUDA_COMMON_SRC})
@@ -110,8 +110,8 @@ IF(WITH_SYCL_CPU STREQUAL "yes"  OR WITH_SYCL_CUDA STREQUAL "yes" OR WITH_SYCL_R
 		${SYCL_SRCDIR}/arithmetic.cpp ${SYCL_SRCDIR}/ftle.cpp)
 
 	IF(WITH_SYCL_CPU STREQUAL "yes")
-                SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include --hipsycl-targets=omp --hipsycl-cpu-cxx=/home/trasgo/local/llvm12/bin/clang++")
-                SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib --hipsycl-targets=omp --hipsycl-cpu-cxx=/home/trasgo/local/llvm12/bin/clang++")
+                SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include --hipsycl-targets='omp\;cuda:sm_60' --hipsycl-cpu-cxx=/home/trasgo/local/llvm14/bin/clang++")
+                SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib --hipsycl-targets='omp\;cuda:sm_60' --hipsycl-cpu-cxx=/home/trasgo/local/llvm14/bin/clang++ -lstdc++ -L${BOOST_DIR}/lib  -lm")
                 ADD_EXECUTABLE(ftle_sycl_cpu  ${SYCL_SRC})
                 SET_TARGET_PROPERTIES(ftle_sycl_cpu  PROPERTIES COMPILE_FLAGS  ${SYCL_COMPILE_FLAGS})
                 SET_TARGET_PROPERTIES(ftle_sycl_cpu  PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
@@ -121,8 +121,8 @@ IF(WITH_SYCL_CPU STREQUAL "yes"  OR WITH_SYCL_CUDA STREQUAL "yes" OR WITH_SYCL_R
 	
 	IF(WITH_SYCL_CUDA STREQUAL "yes")
 		#TODO configurar arquitectura en CmakeLIST
-		SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include --hipsycl-gpu-arch=sm_60 -DGPU_DEVICE")
-		SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib --hipsycl-gpu-arch=sm_60")
+		SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include --hipsycl-targets=cuda:sm_60 -DCUDA_DEVICE")
+		SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib --hipsycl-targets=cuda:sm_60")
 		ADD_EXECUTABLE(ftle_sycl_cuda  ${SYCL_SRC})
 		SET_TARGET_PROPERTIES(ftle_sycl_cuda  PROPERTIES COMPILE_FLAGS 	${SYCL_COMPILE_FLAGS})
 		SET_TARGET_PROPERTIES(ftle_sycl_cuda  PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
@@ -131,13 +131,23 @@ IF(WITH_SYCL_CPU STREQUAL "yes"  OR WITH_SYCL_CUDA STREQUAL "yes" OR WITH_SYCL_R
 
 	IF(WITH_SYCL_ROCM STREQUAL "yes")
 		#TODO configurar arquitectura en CmakeLIST
-		SET(ROCM_COMMON_FLAGS "--rocm-path=${ROCM_DIR} --hipsycl-platform=rocm --hipsycl-gpu-arch=gfx900 -L${ROCM_DIR}/lib -L${ROCM_DIR}/lib64 -I/opt/rocm-4.1.0/hip/include/hip/")
-		SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include -DGPU_DEVICE ${ROCM_COMMON_FLAGS}")
-		SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib ${ROCM_COMMON_FLAGS} -lm")
+		SET(ROCM_COMMON_FLAGS "--rocm-path=${ROCM_DIR} --hipsycl-targets=hip:gfx900  -I/opt/rocm-4.2.0/hip/include/hip/ -DHIP_DEVICE")
+		SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include ${ROCM_COMMON_FLAGS}")
+		SET(SYCL_LINK_FLAGS "-lstdc++ -L${ROCM_DIR}/lib -L${ROCM_DIR}/lib64 -L${BOOST_DIR}/lib ${ROCM_COMMON_FLAGS} -lm")
 		ADD_EXECUTABLE(ftle_sycl_rocm  ${SYCL_SRC})
 		SET_TARGET_PROPERTIES(ftle_sycl_rocm  PROPERTIES COMPILE_FLAGS 	${SYCL_COMPILE_FLAGS})
 		SET_TARGET_PROPERTIES(ftle_sycl_rocm  PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
 		INSTALL(TARGETS ftle_sycl_rocm RUNTIME DESTINATION bin)
+	ENDIF()
+	
+	IF(WITH_SYCL_CUDA STREQUAL "yes" AND WITH_SYCL_ROCM STREQUAL "yes")
+           SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include -DGPU_ALL --hipsycl-explicit-multipass --hipsycl-targets='omp\;hip:gfx900\;cuda:sm_60' --hipsycl-cpu-cxx=/home/trasgo/local/llvm14/bin/clang++ --rocm-path=${ROCM_DIR}  -I/opt/rocm-4.2.0/hip/include/")
+           SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib --hipsycl-explicit-multipass --hipsycl-targets='omp\;hip:gfx900\;cuda:sm_60' --hipsycl-cpu-cxx=/home/trasgo/local/llvm14/bin/clang++ -lstdc++ -L${ROCM_DIR}/lib -L${ROCM_DIR}/lib64 -L${BOOST_DIR}/lib ${ROCM_COMMON_FLAGS} -lm")
+           ADD_EXECUTABLE(ftle_sycl_gpu  ${SYCL_SRC})
+           SET_TARGET_PROPERTIES(ftle_sycl_gpu  PROPERTIES COMPILE_FLAGS  ${SYCL_COMPILE_FLAGS})
+           SET_TARGET_PROPERTIES(ftle_sycl_gpu  PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
+           INSTALL(TARGETS ftle_sycl_gpu RUNTIME DESTINATION bin)
+
 	ENDIF()
 	
 ENDIF()

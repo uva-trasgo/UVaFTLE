@@ -31,7 +31,7 @@ double max_solve_3rd_degree_eq ( double a, double b, double c, double d)
 	return ( max > x3 ) ? max : x3;
 }
 
-void compute_gradient_2D (queue* q, int nPoints, int nVertsPerFace, cl::sycl::buffer<double, 1> *b_coords, cl::sycl::buffer<double, 1> *b_flowmap, cl::sycl::buffer<int, 1> *b_faces, 
+void compute_gradient_2D (queue* q, int nPoints, int offset, int nVertsPerFace, cl::sycl::buffer<double, 1> *b_coords, cl::sycl::buffer<double, 1> *b_flowmap, cl::sycl::buffer<int, 1> *b_faces, 
 					cl::sycl::buffer<int, 1> *b_nFacesPerPoint, cl::sycl::buffer<int, 1> *b_facesPerPoint, cl::sycl::buffer<double, 1> *b_log_sqrt, double T ){
 	
 	q->submit([&](handler &h){
@@ -42,7 +42,7 @@ void compute_gradient_2D (queue* q, int nPoints, int nVertsPerFace, cl::sycl::bu
 		auto facesPerPoint = b_facesPerPoint->get_access<access::mode::read>(h);
 		auto log_sqrt = b_log_sqrt->get_access<access::mode::discard_write>(h);
 		h.parallel_for<class ftle2D> (range<1>{static_cast<size_t>(nPoints)}, [=](id<1> i){
-			int ip = i[0];
+			int ip = i[0] + offset;
 			int nDim = 2; 
 			int iface, nFaces, idxface, ivert;
 			int closest_points_0 = -1;
@@ -188,12 +188,12 @@ void compute_gradient_2D (queue* q, int nPoints, int nVertsPerFace, cl::sycl::bu
 
 			max = cl::sycl::sqrt(max);
 			max = cl::sycl::log (max);
-			log_sqrt[ip] = max / T;	
+			log_sqrt[i[0]] = max / T;	
 		}); /*End parallel for*/
 	}); /*End submit*/	
 }
 
-void compute_gradient_3D (queue* q,  int nPoints, int nVertsPerFace, cl::sycl::buffer<double, 1> *b_coords, cl::sycl::buffer<double, 1> *b_flowmap, cl::sycl::buffer<int, 1> *b_faces, 
+void compute_gradient_3D (queue* q,  int nPoints, int offset, int nVertsPerFace, cl::sycl::buffer<double, 1> *b_coords, cl::sycl::buffer<double, 1> *b_flowmap, cl::sycl::buffer<int, 1> *b_faces, 
 					cl::sycl::buffer<int, 1> *b_nFacesPerPoint, cl::sycl::buffer<int, 1> *b_facesPerPoint, cl::sycl::buffer<double, 1> *b_log_sqrt, double T )
 {
 		q->submit([&](handler &h){
@@ -204,8 +204,8 @@ void compute_gradient_3D (queue* q,  int nPoints, int nVertsPerFace, cl::sycl::b
 		auto facesPerPoint = b_facesPerPoint->get_access<access::mode::read>(h);
 		auto log_sqrt = b_log_sqrt->get_access<access::mode::discard_write>(h);
 		h.parallel_for<class ftle3D> (range<1>{static_cast<size_t>(nPoints)}, [=](id<1> i){
-			int ip = i[0];
-						int nDim = 3; 
+			int ip = i[0] + offset;
+			int nDim = 3; 
 			int iface, nFaces, idxface, ivert;
 			int closest_points_0 = -1;
 			int closest_points_1 = -1;
@@ -361,7 +361,7 @@ void compute_gradient_3D (queue* q,  int nPoints, int nVertsPerFace, cl::sycl::b
 			double max = max_solve_3rd_degree_eq ( a, b, c, d );
 			max = cl::sycl::sqrt(max);
 			max = cl::sycl::log (max);
-			log_sqrt[ip] = max / T;	
+			log_sqrt[i[0]] = max / T;	
 		}); /*End parallel for*/
 	}); /*End submit*/	
 
