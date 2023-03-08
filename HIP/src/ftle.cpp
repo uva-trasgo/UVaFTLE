@@ -19,7 +19,6 @@
 #define Num_Streams 1
 
 
-
 void show_GPU_devices_info(int nDevices)
 {
     int i;
@@ -193,7 +192,7 @@ int main(int argc, char *argv[]) {
         
 
     hipMemcpy( facesPerPoint,   d2_facesPerPoint,   sizeof(int)    * nFacesPerPoint[ nPoints - 1 ], hipMemcpyDeviceToHost ); 
-#ifdef PINNED    
+#ifndef PINNED    
     printf("\nComputing FTLE (non pinned)...                                 ");
 #else
     printf("\nComputing FTLE (pinned)...                                 ");    
