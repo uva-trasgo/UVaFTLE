@@ -40,9 +40,16 @@ void compute_gradient_2D (queue* q, int nPoints, int offset, int nVertsPerFace, 
 		auto faces = b_faces->get_access<access::mode::read>(h);
 		auto nFacesPerPoint = b_nFacesPerPoint->get_access<access::mode::read>(h);
 		auto facesPerPoint = b_facesPerPoint->get_access<access::mode::read>(h);
-		auto log_sqrt = b_log_sqrt->get_access<access::mode::discard_write>(h);
+
+#if (defined(CUDA_DEVICE) || defined(HIP_DEVICE))		
+		int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
+		h.parallel_for<class ftle2D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
+		int ip = i.get_global_id(0) + offset;
+		if(i.get_global_id(0) < nPoints)
+#else
 		h.parallel_for<class ftle2D> (range<1>{static_cast<size_t>(nPoints)}, [=](id<1> i){
 			int ip = i[0] + offset;
+#endif		
 			int nDim = 2; 
 			int iface, nFaces, idxface, ivert;
 			int closest_points_0 = -1;
@@ -188,7 +195,13 @@ void compute_gradient_2D (queue* q, int nPoints, int offset, int nVertsPerFace, 
 
 			max = cl::sycl::sqrt(max);
 			max = cl::sycl::log (max);
-			log_sqrt[i[0]] = max / T;	
+#if (defined(CUDA_DEVICE) || defined(HIP_DEVICE))					
+			log_sqrt[i.get_global_id(0)] = max / T;				
+		    }
+#else
+			log_sqrt[i[0]] = max / T;
+	}		
+#endif		    	
 		}); /*End parallel for*/
 	}); /*End submit*/	
 }
@@ -197,14 +210,21 @@ void compute_gradient_3D (queue* q,  int nPoints, int offset, int nVertsPerFace,
 					cl::sycl::buffer<int, 1> *b_nFacesPerPoint, cl::sycl::buffer<int, 1> *b_facesPerPoint, cl::sycl::buffer<double, 1> *b_log_sqrt, double T )
 {
 		q->submit([&](handler &h){
-		auto coords = b_coords->get_access<access::mode::read>(h);
-		auto flowmap = b_flowmap->get_access<access::mode::read>(h);
-		auto faces = b_faces->get_access<access::mode::read>(h);
-		auto nFacesPerPoint = b_nFacesPerPoint->get_access<access::mode::read>(h);
-		auto facesPerPoint = b_facesPerPoint->get_access<access::mode::read>(h);
-		auto log_sqrt = b_log_sqrt->get_access<access::mode::discard_write>(h);
-		h.parallel_for<class ftle3D> (range<1>{static_cast<size_t>(nPoints)}, [=](id<1> i){
+		auto coords = b_coords->get_access<access::mode::read, access::target::constant_buffer>(h);
+		auto flowmap = b_flowmap->get_access<access::mode::read, access::target::constant_buffer>(h);
+		auto faces = b_faces->get_access<access::mode::read, access::target::constant_buffer>(h);
+		auto nFacesPerPoint = b_nFacesPerPoint->get_access<access::mode::read, access::target::constant_buffer>(h);
+		auto facesPerPoint = b_facesPerPoint->get_access<access::mode::read, access::target::constant_buffer>(h);
+		auto log_sqrt = b_log_sqrt->get_access<access::mode::discard_write, access::target::global_buffer>(h);
+#if defined(CUDA_DEVICE) || defined(HIP_DEVICE)		
+		int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
+		h.parallel_for<class ftle3D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
+		int ip = i.get_global_id(0) + offset;
+		if(i.get_global_id(0) < nPoints){
+#else
+		h.parallel_for<class ftle2D> (range<1>{static_cast<size_t>(nPoints)}, [=](id<1> i){
 			int ip = i[0] + offset;
+#endif		
 			int nDim = 3; 
 			int iface, nFaces, idxface, ivert;
 			int closest_points_0 = -1;
@@ -361,7 +381,12 @@ void compute_gradient_3D (queue* q,  int nPoints, int offset, int nVertsPerFace,
 			double max = max_solve_3rd_degree_eq ( a, b, c, d );
 			max = cl::sycl::sqrt(max);
 			max = cl::sycl::log (max);
-			log_sqrt[i[0]] = max / T;	
+#if defined(CUDA_DEVICE) || defined(HIP_DEVICE)			
+			log_sqrt[i.get_global_id(0)] = max / T;				
+		    }
+#else
+			log_sqrt[i[0]] = max / T;
+#endif
 		}); /*End parallel for*/
 	}); /*End submit*/	
 

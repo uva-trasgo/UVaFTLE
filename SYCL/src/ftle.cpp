@@ -199,6 +199,18 @@ int main(int argc, char *argv[]) {
 	int nGpus = 1;
 	auto queues = get_queues_from_platform(OMP_PLATFORM, nGpus);
 #endif
+
+	std::vector<int> v_points(nGpus);
+		std::vector<int> offsets(nGpus);
+		//std::vector<cl::sycl::buffer<double, 1>> salidas(nGpus);
+		int gap= ((nPoints / nGpus)/BLOCK)*BLOCK;
+		for(int d=0; d < nGpus; d++){
+			v_points[d] = gap; 
+			if(d == nGpus-1)
+				v_points[d]=nPoints - gap*d;
+			offsets[d] = gap*d;
+			printf("gpu %d,  offset %d, elements %d\n", d,offsets[d], v_points[d]);
+	}
 	
 	printf("Preprocessing device: %s\n", preproc_queue.get_device().get_info<info::device::name>().c_str());  
 	for(int d =0; d < nGpus; d++)
@@ -216,15 +228,7 @@ int main(int argc, char *argv[]) {
 #ifdef GPU_ALL	
 		cl::sycl::buffer<int, 1> b_facesPerPoint_aux(facesPerPoint_aux, D1_RANGE(nFacesPerPoint[ nPoints - 1 ])); //check
 #endif
-		std::vector<int> v_points(nGpus);
-		std::vector<int> offsets(nGpus);
-		int gap= nPoints / nGpus;
-		for(int d=0; d < nGpus; d++){
-			v_points[d] = gap; 
-			if(d == nGpus-1)
-				v_points[d]+=nPoints % nGpus;
-			offsets[d] = gap*d;
-		}
+		
         	/*First Kernel for preprocessing */
 #ifdef GPU_ALL	
 		create_facesPerPoint_vector(&preproc_queue, nDim, nPoints, nFaces, nVertsPerFace, &b_faces, &b_nFacesPerPoint, &b_facesPerPoint_aux);
@@ -256,9 +260,9 @@ int main(int argc, char *argv[]) {
 	    }
 	    for(int d =0; d < nGpus; d++)
 	       	queues[d].wait();	
+	    gettimeofday(&end, NULL);      	  	
 	}
 	/* Time */
-	gettimeofday(&end, NULL);
 	printf("DONE\n\n");
 	printf("--------------------------------------------------------\n");
 	fflush(stdout);
@@ -268,7 +272,7 @@ int main(int argc, char *argv[]) {
 	{
 		printf("\nWriting result in output file...                  ");
 		fflush(stdout);
-		FILE *fp_w = fopen("ftle_result.csv", "w");
+		FILE *fp_w = fopen("sycl_result.csv", "w");
 		for ( int ii = 0; ii < nPoints; ii++ )
 		{
 			fprintf(fp_w, "%f\n", logSqrt[ii]);

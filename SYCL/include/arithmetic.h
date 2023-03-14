@@ -3,8 +3,12 @@
 #include <CL/sycl.hpp>
 using namespace cl::sycl;
 
+#ifndef BLOCK
+#define BLOCK 512
+#endif
 #ifndef STRUCTS_H
 #define STRUCTS_H
+
 typedef struct Face {
    int      index;      /* index to mesh->faces structure */
    int     *vertices;   /* index to mesh->points structure */

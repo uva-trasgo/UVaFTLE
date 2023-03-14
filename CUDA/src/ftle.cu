@@ -84,7 +84,6 @@ int main(int argc, char *argv[]) {
     int    *nFacesPerPoint, *d2_nFacesPerPoint;
     int    *facesPerPoint,  *d2_facesPerPoint;
 
-    int m, lda;
 
     /* Obtain and show GPU devices information */
     printf("\nGPU devices to be used:         \n\n");    
@@ -178,8 +177,11 @@ int main(int argc, char *argv[]) {
     create_facesPerPoint_vector_GPU<<<(ceil(    (double)nPoints/(double)blockSize)  +1),blockSize>>> ( nDim, nPoints, nFaces, nVertsPerFace, 
         d2_faces, d2_nFacesPerPoint, d2_facesPerPoint );
     cudaMemcpy( facesPerPoint,   d2_facesPerPoint,   sizeof(int)    * nFacesPerPoint[ nPoints - 1 ], cudaMemcpyDeviceToHost ); 
-    
-    printf("\nComputing FTLE...                                 ");
+#ifdef PINNED
+    printf("\nComputing FTLE (pinned)...                                 ");
+#else
+    printf("\nComputing FTLE (non pinned)...                                 ");
+#endif
     fflush(stdout);
 
     #pragma omp parallel default(none)  shared(stdout, logSqrt, nDim, nPoints, nFaces, nVertsPerFace, numThreads, times, faces, coords, nFacesPerPoint, facesPerPoint, flowmap, t_eval, lda, m)   //shared(sched_chunk_size, t_eval, npoints, nteval, result, mesh, d_cuda_coords_vector, d_cuda_coords_vector2, d_cuda_velocity_vector, d_cuda_velocity_vector2, d_cuda_faces_vector, d_cuda_faces_vector2, d_cuda_times_vector, d_cuda_times_vector2, nsteps_rk4, numBlocks) private(ip, it, itprev) firstprivate(multigpu)
@@ -187,7 +189,6 @@ int main(int argc, char *argv[]) {
         numThreads = omp_get_num_threads();
         cudaError_t error;
         double *d_logSqrt;
-        double *d_A_ei, *d_W_ei, *d_ftl_matrix;
         double *d_gra1, *d_gra2, *d_gra3;
         double *d_cg_tensor1, *d_cg_tensor2, *d_cg_tensor3;
         double *d_coords, *d_flowmap, *d_res;
@@ -215,10 +216,7 @@ int main(int argc, char *argv[]) {
         if (nDim == 3) cudaMalloc( &d_gra3, sizeof(double) * nPoints * nDim );
         cudaMalloc ((void**)&d_cg_tensor1, sizeof(double) * nPoints * nDim); 
         cudaMalloc ((void**)&d_cg_tensor2, sizeof(double) * nPoints * nDim); 
-        if (nDim == 3) cudaMalloc ((void**)&d_cg_tensor3, sizeof(double) * nPoints * nDim); 
-        cudaMalloc ( &d_ftl_matrix, sizeof(double)*nPoints * nDim * nDim );
-        cudaMalloc ((void**)&d_A_ei, sizeof(double) * lda * m);            
-        cudaMalloc ((void**)&d_W_ei, sizeof(double) * m * nPoints);            
+        if (nDim == 3) cudaMalloc ((void**)&d_cg_tensor3, sizeof(double) * nPoints * nDim);             
         cudaMalloc ((void**)&devInfo, sizeof(int));
 
         /* Copy data to GPU */
@@ -234,7 +232,7 @@ int main(int argc, char *argv[]) {
 
         /* Create dim3 for GPU */
         dim3 block(blockSize);
-        int numBlocks = (int) (ceil(    (double)nPoints/(double)block.x)  +1);
+        int numBlocks = (int) (ceil((double)nPoints/(double)block.x)+1);
         numBlocks = numBlocks/omp_get_num_threads() + 1; 
         dim3 grid_numCoords(numBlocks);
 
@@ -263,7 +261,7 @@ int main(int argc, char *argv[]) {
             gpu_compute_gradient_3D <<<grid_numCoords, block>>> (localStride,
                 nPoints, nVertsPerFace, 
                 d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, 
-                d_ftl_matrix, d_W_ei, d_logSqrt, t_eval);
+                d_logSqrt, t_eval);
 
         cudaMemcpy (&logSqrt[localStride],  &d_logSqrt[localStride], sizeof(double) * (nPoints / omp_get_num_threads()), cudaMemcpyDeviceToHost);
 #else
@@ -276,7 +274,7 @@ int main(int argc, char *argv[]) {
             gpu_compute_gradient_3D <<<grid_numCoords, block,0,streams[0]>>> (localStride,
                 nPoints, nVertsPerFace, 
                 d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, 
-                d_ftl_matrix, d_W_ei, d_logSqrt, t_eval);
+                 d_logSqrt, t_eval);
 
         cudaMemcpyAsync (&logSqrt[localStride],  &d_logSqrt[localStride], sizeof(double) * (nPoints / omp_get_num_threads()), cudaMemcpyDeviceToHost,streams[0]);
 #endif
@@ -304,13 +302,10 @@ cudaDeviceSynchronize();
         cudaFree(d_nFacesPerPoint);
         cudaFree(d_facesPerPoint);
         cudaFree(d_logSqrt);
-        cudaFree(d_ftl_matrix);
         cudaFree(d_gra1);
         cudaFree(d_gra2);
         cudaFree(d_gra3);
         cudaFree(d_res);
-        cudaFree(d_A_ei);
-        cudaFree(d_W_ei);
         cudaFree(d_cg_tensor1);
         cudaFree(d_cg_tensor2);
         cudaFree(d_cg_tensor3);
