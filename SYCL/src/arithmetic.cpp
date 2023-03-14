@@ -40,12 +40,12 @@ void compute_gradient_2D (queue* q, int nPoints, int offset, int nVertsPerFace, 
 		auto faces = b_faces->get_access<access::mode::read>(h);
 		auto nFacesPerPoint = b_nFacesPerPoint->get_access<access::mode::read>(h);
 		auto facesPerPoint = b_facesPerPoint->get_access<access::mode::read>(h);
-
+		auto log_sqrt = b_log_sqrt->get_access<access::mode::discard_write>(h);
 #if (defined(CUDA_DEVICE) || defined(HIP_DEVICE))		
 		int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
 		h.parallel_for<class ftle2D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
 		int ip = i.get_global_id(0) + offset;
-		if(i.get_global_id(0) < nPoints)
+		if(i.get_global_id(0) < nPoints){
 #else
 		h.parallel_for<class ftle2D> (range<1>{static_cast<size_t>(nPoints)}, [=](id<1> i){
 			int ip = i[0] + offset;
@@ -199,8 +199,7 @@ void compute_gradient_2D (queue* q, int nPoints, int offset, int nVertsPerFace, 
 			log_sqrt[i.get_global_id(0)] = max / T;				
 		    }
 #else
-			log_sqrt[i[0]] = max / T;
-	}		
+			log_sqrt[i[0]] = max / T;		
 #endif		    	
 		}); /*End parallel for*/
 	}); /*End submit*/	

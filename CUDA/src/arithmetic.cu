@@ -340,16 +340,6 @@ double *d_logSqrt, double T) //double *gra1, double *gra2 )
     double A32 = gra30 * gra30 + gra31 * gra31 + gra32 * gra32;
 
 
-		double A10 = ftle_matrix[th_id * nDim * nDim];
-        double A11 = ftle_matrix[th_id * nDim * nDim + 1];
-        double A12 = ftle_matrix[th_id * nDim * nDim + 2];        
-        double A20 = ftle_matrix[th_id * nDim * nDim + 3];
-		double A21 = ftle_matrix[th_id * nDim * nDim + 4];
-        double A22 = ftle_matrix[th_id * nDim * nDim + 5];
-        double A30 = ftle_matrix[th_id * nDim * nDim + 6];        
-        double A31 = ftle_matrix[th_id * nDim * nDim + 7];
-        double A32 = ftle_matrix[th_id * nDim * nDim + 8];
-
 		double a = -1;
         double b = A10 + A21 + A32;
         double c = A12 * A30 + A22 * A31 + A11 * A20 - A10 * A21 - A10 * A32 - A21 * A32;

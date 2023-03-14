@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
 
     /* Initialize mesh original information */
     nDim = atoi(argv[1]);
-    m = nDim; lda = nDim;
+    
     if ( nDim == 2 ) nVertsPerFace = 3; // 2D: faces are triangles
     else 
     {
@@ -184,7 +184,7 @@ int main(int argc, char *argv[]) {
 #endif
     fflush(stdout);
 
-    #pragma omp parallel default(none)  shared(stdout, logSqrt, nDim, nPoints, nFaces, nVertsPerFace, numThreads, times, faces, coords, nFacesPerPoint, facesPerPoint, flowmap, t_eval, lda, m)   //shared(sched_chunk_size, t_eval, npoints, nteval, result, mesh, d_cuda_coords_vector, d_cuda_coords_vector2, d_cuda_velocity_vector, d_cuda_velocity_vector2, d_cuda_faces_vector, d_cuda_faces_vector2, d_cuda_times_vector, d_cuda_times_vector2, nsteps_rk4, numBlocks) private(ip, it, itprev) firstprivate(multigpu)
+    #pragma omp parallel default(none)  shared(stdout, logSqrt, nDim, nPoints, nFaces, nVertsPerFace, numThreads, times, faces, coords, nFacesPerPoint, facesPerPoint, flowmap, t_eval)   //shared(sched_chunk_size, t_eval, npoints, nteval, result, mesh, d_cuda_coords_vector, d_cuda_coords_vector2, d_cuda_velocity_vector, d_cuda_velocity_vector2, d_cuda_faces_vector, d_cuda_faces_vector2, d_cuda_times_vector, d_cuda_times_vector2, nsteps_rk4, numBlocks) private(ip, it, itprev) firstprivate(multigpu)
     {
         numThreads = omp_get_num_threads();
         cudaError_t error;
@@ -256,7 +256,7 @@ int main(int argc, char *argv[]) {
             gpu_compute_gradient_2D <<<grid_numCoords, block>>> (localStride,
                 nPoints, nVertsPerFace, 
                 d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, 
-                d_ftl_matrix, d_W_ei, d_logSqrt, t_eval);
+                d_logSqrt, t_eval);
         else
             gpu_compute_gradient_3D <<<grid_numCoords, block>>> (localStride,
                 nPoints, nVertsPerFace, 
@@ -269,7 +269,7 @@ int main(int argc, char *argv[]) {
             gpu_compute_gradient_2D <<<grid_numCoords, block,0, streams[0]>>> (localStride,
                 nPoints, nVertsPerFace, 
                 d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, 
-                d_ftl_matrix, d_W_ei, d_logSqrt, t_eval);
+                 d_logSqrt, t_eval);
         else
             gpu_compute_gradient_3D <<<grid_numCoords, block,0,streams[0]>>> (localStride,
                 nPoints, nVertsPerFace, 
