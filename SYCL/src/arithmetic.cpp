@@ -31,10 +31,10 @@ double max_solve_3rd_degree_eq ( double a, double b, double c, double d)
 	return ( max > x3 ) ? max : x3;
 }
 
-void compute_gradient_2D (queue* q, int nPoints, int offset, int nVertsPerFace, cl::sycl::buffer<double, 1> *b_coords, cl::sycl::buffer<double, 1> *b_flowmap, cl::sycl::buffer<int, 1> *b_faces, 
+cl::sycl::event compute_gradient_2D (queue* q, int nPoints, int offset, int nVertsPerFace, cl::sycl::buffer<double, 1> *b_coords, cl::sycl::buffer<double, 1> *b_flowmap, cl::sycl::buffer<int, 1> *b_faces, 
 					cl::sycl::buffer<int, 1> *b_nFacesPerPoint, cl::sycl::buffer<int, 1> *b_facesPerPoint, cl::sycl::buffer<double, 1> *b_log_sqrt, double T ){
 	
-	q->submit([&](handler &h){
+	return q->submit([&](handler &h){
 		auto coords = b_coords->get_access<access::mode::read>(h);
 		auto flowmap = b_flowmap->get_access<access::mode::read>(h);
 		auto faces = b_faces->get_access<access::mode::read>(h);
@@ -203,12 +203,13 @@ void compute_gradient_2D (queue* q, int nPoints, int offset, int nVertsPerFace, 
 #endif		    	
 		}); /*End parallel for*/
 	}); /*End submit*/	
+
 }
 
-void compute_gradient_3D (queue* q,  int nPoints, int offset, int nVertsPerFace, cl::sycl::buffer<double, 1> *b_coords, cl::sycl::buffer<double, 1> *b_flowmap, cl::sycl::buffer<int, 1> *b_faces, 
+cl::sycl::event compute_gradient_3D (queue* q,  int nPoints, int offset, int nVertsPerFace, cl::sycl::buffer<double, 1> *b_coords, cl::sycl::buffer<double, 1> *b_flowmap, cl::sycl::buffer<int, 1> *b_faces, 
 					cl::sycl::buffer<int, 1> *b_nFacesPerPoint, cl::sycl::buffer<int, 1> *b_facesPerPoint, cl::sycl::buffer<double, 1> *b_log_sqrt, double T )
 {
-		q->submit([&](handler &h){
+		return q->submit([&](handler &h){
 		auto coords = b_coords->get_access<access::mode::read, access::target::constant_buffer>(h);
 		auto flowmap = b_flowmap->get_access<access::mode::read, access::target::constant_buffer>(h);
 		auto faces = b_faces->get_access<access::mode::read, access::target::constant_buffer>(h);
@@ -389,5 +390,4 @@ void compute_gradient_3D (queue* q,  int nPoints, int offset, int nVertsPerFace,
 #endif
 		}); /*End parallel for*/
 	}); /*End submit*/	
-
 }

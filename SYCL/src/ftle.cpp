@@ -1,12 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
-#include <time.h>
 #include <assert.h>
 #include <vector>
 #include <iostream>
 #include <CL/sycl.hpp>
-
+#include <sys/time.h>
+#include <time.h>
 #include "ftle.h"
 #include "arithmetic.h"
 #include "preprocess.h"
@@ -20,11 +19,17 @@
 
 using namespace cl::sycl;
 
+float getKernelExecutionTime(::event event){
+	auto start_time = event.get_profiling_info<::info::event_profiling::command_start>();
+ 	auto end_time = event.get_profiling_info<cl::sycl::info::event_profiling::command_end>();
+ 	return (end_time - start_time) / 1000000.0f;
+}
 std::vector<queue> get_queues_from_platform(int plat, int nGpus){
+	auto property_list =::property_list{::property::queue::enable_profiling()};
 	if(plat == OMP_PLATFORM)
 	{
 		std::vector<queue> queues(1);
-		queues[0] = queue(cpu_selector{});
+		queues[0] = queue(cpu_selector{}, property_list);
 		return queues;
 	}
 	if(plat == ALL_GPUS_PLATFORM){
@@ -35,8 +40,8 @@ std::vector<queue> get_queues_from_platform(int plat, int nGpus){
 			 exit(1);
 		}
 		for (int d=0; d< nGpus; d++){
-			printf("Dispositivo %d: %s\n", d, devs[d].get_info<info::device::name>().c_str());
-			queues[d] = queue(devs[d]);
+			printf("Dispositivo %d: %s\n", d, devs[nGpus - 1 -d ].get_info<info::device::name>().c_str());
+			queues[d] = queue(devs[nGpus - 1 -d ], property_list);
 		}
 		return queues;
 	}
@@ -53,7 +58,7 @@ std::vector<queue> get_queues_from_platform(int plat, int nGpus){
 			std::vector<queue> queues(nGpus);
 			for (int d=0; d< nGpus; d++){
 				printf("Dispositivo %d: %s\n", d, devs[d].get_info<info::device::name>().c_str());
-				queues[d] = queue(devs[d]);
+				queues[d] = queue(devs[d], property_list);
 			}
 			return queues;
 		}
@@ -91,10 +96,6 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	struct timeval start;
-	struct timeval end;
-	struct timeval preprocess;
-	double time;
 	double t_eval = atof(argv[5]);
 	int check_EOF;
 	char buffer[255];
@@ -105,13 +106,13 @@ int main(int argc, char *argv[]) {
 	int    *faces;
 	int    *nFacesPerPoint;
 
-	int    *facesPerPoint;
-#ifdef GPU_ALL	
-	int    *facesPerPoint_aux;
-#endif	
+	int    *facesPerPoint;	
 	double *w;
 	double *logSqrt;
-
+	struct timeval start;
+	struct timeval end;
+	struct timeval preprocess;
+	double time;
 
 	/* Initialize mesh original information */
 	nDim = atoi(argv[1]);
@@ -200,6 +201,7 @@ int main(int argc, char *argv[]) {
 	std::vector<int> offsets(maxGpus);
 	std::vector<int> v_points_faces(maxGpus);
 	std::vector<int> offsets_faces(maxGpus);
+	std::vector<::event> event_list(nGpus*2);
 	int gap= ((nPoints / nGpus)/BLOCK)*BLOCK;
 	for(int d=0; d < maxGpus; d++){
 		if(d < nGpus){
@@ -228,9 +230,9 @@ int main(int argc, char *argv[]) {
 	
 	for(int d =0; d < nGpus; d++)
 		printf("Kernel device %d: %s\n", d, queues[d].get_device().get_info<info::device::name>().c_str());  
-	gettimeofday(&start, NULL);
 
 	printf("\nComputing FTLE (SYCL)...                     ");
+	gettimeofday(&start, NULL);
 	{  
 		/*Creating SYCL BUFFERS*/
 		::buffer<double, 1> b_coords(coords, D1_RANGE(nPoints * nDim)); 
@@ -250,30 +252,23 @@ int main(int argc, char *argv[]) {
         	/*First Kernel for preprocessing */
    	
 		for(int d=0; d < nGpus; d++){
-			create_facesPerPoint_vector(&queues[d], nDim, v_points[d], offsets[d], nFaces, nVertsPerFace, &b_faces, &b_nFacesPerPoint,
+			event_list[d] = create_facesPerPoint_vector(&queues[d], nDim, v_points[d], offsets[d], nFaces, nVertsPerFace, &b_faces, &b_nFacesPerPoint,
 			(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))));
 		}
- 		
-		for(int d =0; d < nGpus; d++)
-	       	queues[d].wait();	
-		gettimeofday(&preprocess, NULL);
-		
         /* Compute gradient, tensors and ATxA based on neighbors flowmap values, then get the max eigenvalue */
        	for(int d=0; d < nGpus; d++){
 			if ( nDim == 2 ){
-				compute_gradient_2D ( &queues[d], v_points[d], offsets[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint,
+				event_list[nGpus + d] = 	compute_gradient_2D ( &queues[d], v_points[d], offsets[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint,
 				 	(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))), 
 					(d==0 ? &b_logSqrt0 : (d==1 ? &b_logSqrt1 : (d==2 ? &b_logSqrt2 : &b_logSqrt3))), t_eval);
 		  	}else{
-				compute_gradient_3D  ( &queues[d], v_points[d], offsets[d],  nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, 
+				event_list[nGpus + d] = compute_gradient_3D  ( &queues[d], v_points[d], offsets[d],  nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, 
 					(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))), 
 					(d==0 ? &b_logSqrt0 : (d==1 ? &b_logSqrt1 : (d==2 ? &b_logSqrt2 : &b_logSqrt3))), t_eval);
 		   	}
-		}
-		for(int d =0; d < nGpus; d++)
-		  	queues[d].wait();	
-		gettimeofday(&end, NULL);      	  	
+		}	  	
 	}
+	gettimeofday(&end, NULL);   
 	/* Time */
 	printf("DONE\n\n");
 	printf("--------------------------------------------------------\n");
@@ -294,18 +289,19 @@ int main(int argc, char *argv[]) {
 		printf("--------------------------------------------------------\n");
 		fflush(stdout);
 	}
-
+	//auto start_time = event.get_profiling_info<::info::event_profiling::command_start>();
+ 	//auto end_time = event.get_profiling_info<cl::sycl::info::event_profiling::command_end>();
+ 	//return (end_time - start_time) / 1000000.0f;
 	/* Show execution time */   
-	/*TODO discutir que hacer con el tiempo de preprocesado*/
-	time = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec)/1000000.0;
-	printf("\nExecution time (seconds): %f\n",  time);
-	time = (preprocess.tv_sec - start.tv_sec) + (preprocess.tv_usec - start.tv_usec)/1000000.0;
-	printf("Preprocessing time (seconds): %f\n", time);
-	time = (end.tv_sec - preprocess.tv_sec) + (end.tv_usec - preprocess.tv_usec)/1000000.0;
-	printf("Processing time (seconds): %f\n\n",  time);
+	printf("Execution times in miliseconds\n");
+	printf("Device Num;  Preproc kernel; FTLE kernel\n");
+	for(int d = 0; d < nGpus; d++){
+		printf("%d; %f; %f\n", d, getKernelExecutionTime(event_list[d]), getKernelExecutionTime(event_list[nGpus + d]));
+	}
 	printf("--------------------------------------------------------\n");
 	fflush(stdout);
-
+	time = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec)/1000000.0;
+	printf("\nExecution time (seconds): %f\n",  time);
 	/* Free memory */
 	free(coords);
 	free(flowmap);
