@@ -186,6 +186,7 @@ int main(int argc, char *argv[]) {
 	/*Generate SYCL queues*/
 	queue preproc_queue(gpu_selector{});
 	queue q_cpu(cpu_selector{});
+	int maxGpus = 4;
 #ifdef HIP_DEVICE
 	int nGpus = (argc==8) ?  atoi(argv[7]) : 1;
 	auto queues = get_queues_from_platform(HIP_PLATFORM, nGpus);
@@ -200,16 +201,26 @@ int main(int argc, char *argv[]) {
 	auto queues = get_queues_from_platform(OMP_PLATFORM, nGpus);
 #endif
 
-	std::vector<int> v_points(nGpus);
-		std::vector<int> offsets(nGpus);
-		//std::vector<cl::sycl::buffer<double, 1>> salidas(nGpus);
-		int gap= ((nPoints / nGpus)/BLOCK)*BLOCK;
-		for(int d=0; d < nGpus; d++){
-			v_points[d] = gap; 
-			if(d == nGpus-1)
-				v_points[d]=nPoints - gap*d;
-			offsets[d] = gap*d;
+	std::vector<int> v_points(maxGpus);
+	std::vector<int> offsets(maxGpus);
+	std::vector<int> v_points_faces(maxGpus);
+	std::vector<int> offsets_faces(maxGpus);
+	int gap= ((nPoints / nGpus)/BLOCK)*BLOCK;
+	for(int d=0; d < maxGpus; d++){
+			if(d < nGpus){
+				v_points[d] = (d == nGpus-1) ? nPoints - gap*d : gap; 
+				offsets[d] = gap*d;
+				int inf = (d != 0) ? nFacesPerPoint[offsets[d]-1] : 0;
+				int sup = (d != nGpus-1) ? nFacesPerPoint[offsets[d+1]-1] :nFacesPerPoint[nPoints-1];
+				v_points_faces[d] =  sup - inf;
+				offsets_faces[d] = (d != 0) ? nFacesPerPoint[offsets[d]-1]: 0;
+			}
+			else{
+				v_points[d] = v_points_faces[d] = 1; 
+				offsets[d] = offsets_faces[d] =  0;
+			}
 			printf("gpu %d,  offset %d, elements %d\n", d,offsets[d], v_points[d]);
+			printf("gpu %d,  offset_faces %d, elements_faces %d\n", d,offsets_faces[d], v_points_faces[d]);
 	}
 	
 	printf("Preprocessing device: %s\n", preproc_queue.get_device().get_info<info::device::name>().c_str());  
@@ -228,6 +239,10 @@ int main(int argc, char *argv[]) {
 #ifdef GPU_ALL	
 		cl::sycl::buffer<int, 1> b_facesPerPoint_aux(facesPerPoint_aux, D1_RANGE(nFacesPerPoint[ nPoints - 1 ])); //check
 #endif
+		::buffer<double, 1> b_logSqrt0(logSqrt + offsets[0], D1_RANGE(v_points[0]));
+		::buffer<double, 1> b_logSqrt1(logSqrt + offsets[1], D1_RANGE(v_points[1]));		
+		::buffer<double, 1> b_logSqrt2(logSqrt + offsets[2], D1_RANGE(v_points[2]));
+		::buffer<double, 1> b_logSqrt3(logSqrt + offsets[3], D1_RANGE(v_points[3]));	
 		
         	/*First Kernel for preprocessing */
 #ifdef GPU_ALL	
@@ -248,14 +263,14 @@ int main(int argc, char *argv[]) {
 		
 		
         /* Compute gradient, tensors and ATxA based on neighbors flowmap values, then get the max eigenvalue */
-        for(int d=0; d < nGpus; d++){
+       for(int d=0; d < nGpus; d++){
 			if ( nDim == 2 ){
-			    cl::sycl::buffer<double, 1> b_logSqrt(logSqrt + offsets[d], D1_RANGE(v_points[d]));
-		   	    compute_gradient_2D ( &queues[d], v_points[d], offsets[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, &b_facesPerPoint, &b_logSqrt, t_eval);
+				compute_gradient_2D ( &queues[d], v_points[d], offsets[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, &b_facesPerPoint, 
+					(d==0 ? &b_logSqrt0 : (d==1 ? &b_logSqrt1 : (d==2 ? &b_logSqrt2 : &b_logSqrt3))), t_eval);
 		  	}
 			else{
-			    cl::sycl::buffer<double, 1> b_logSqrt(logSqrt + offsets[d], D1_RANGE(v_points[d]));
-		   	    compute_gradient_3D  ( &queues[d], v_points[d], offsets[d],  nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, &b_facesPerPoint, &b_logSqrt, t_eval);
+				compute_gradient_3D  ( &queues[d], v_points[d], offsets[d],  nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, &b_facesPerPoint, 
+					(d==0 ? &b_logSqrt0 : (d==1 ? &b_logSqrt1 : (d==2 ? &b_logSqrt2 : &b_logSqrt3))), t_eval);
 		   	}
 	    }
 	    for(int d =0; d < nGpus; d++)
