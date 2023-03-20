@@ -177,15 +177,10 @@ int main(int argc, char *argv[]) {
      /* Assign faces to vertices and generate nFacesPerPoint and facesPerPoint GPU vectors */
      create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
 	facesPerPoint = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
-#ifdef GPU_ALL	
-	facesPerPoint_aux = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
-#endif	
 	/* Solve FTLE */
 	fflush(stdout);
 
 	/*Generate SYCL queues*/
-	queue preproc_queue(gpu_selector{});
-	queue q_cpu(cpu_selector{});
 	int maxGpus = 4;
 #ifdef HIP_DEVICE
 	int nGpus = (argc==8) ?  atoi(argv[7]) : 1;
@@ -207,23 +202,30 @@ int main(int argc, char *argv[]) {
 	std::vector<int> offsets_faces(maxGpus);
 	int gap= ((nPoints / nGpus)/BLOCK)*BLOCK;
 	for(int d=0; d < maxGpus; d++){
-			if(d < nGpus){
-				v_points[d] = (d == nGpus-1) ? nPoints - gap*d : gap; 
-				offsets[d] = gap*d;
-				int inf = (d != 0) ? nFacesPerPoint[offsets[d]-1] : 0;
-				int sup = (d != nGpus-1) ? nFacesPerPoint[offsets[d+1]-1] :nFacesPerPoint[nPoints-1];
-				v_points_faces[d] =  sup - inf;
-				offsets_faces[d] = (d != 0) ? nFacesPerPoint[offsets[d]-1]: 0;
-			}
-			else{
-				v_points[d] = v_points_faces[d] = 1; 
-				offsets[d] = offsets_faces[d] =  0;
-			}
-			printf("gpu %d,  offset %d, elements %d\n", d,offsets[d], v_points[d]);
-			printf("gpu %d,  offset_faces %d, elements_faces %d\n", d,offsets_faces[d], v_points_faces[d]);
+		if(d < nGpus){
+			v_points[d] = (d == nGpus-1) ? nPoints - gap*d : gap; 
+			offsets[d] = gap*d;
+		}
+		else{
+			v_points[d] = 1; 
+			offsets[d] = 0;
+		}
+	}
+	for(int d=0; d < maxGpus; d++){
+		if(d < nGpus){
+			int inf = (d != 0) ? nFacesPerPoint[offsets[d]-1] : 0;
+			int sup = (d != nGpus-1) ? nFacesPerPoint[offsets[d+1]-1] :nFacesPerPoint[nPoints-1];
+			v_points_faces[d] =  sup - inf;
+			offsets_faces[d] = (d != 0) ? nFacesPerPoint[offsets[d]-1]: 0;
+		}
+		else{
+			v_points_faces[d] = 1; 
+			offsets_faces[d] =  0;
+		}
+		printf("gpu %d,  offset %d, elements %d\n", d,offsets[d], v_points[d]);
+		printf("gpu %d,  offset_faces %d, elements_faces %d\n", d,offsets_faces[d], v_points_faces[d]);
 	}
 	
-	printf("Preprocessing device: %s\n", preproc_queue.get_device().get_info<info::device::name>().c_str());  
 	for(int d =0; d < nGpus; d++)
 		printf("Kernel device %d: %s\n", d, queues[d].get_device().get_info<info::device::name>().c_str());  
 	gettimeofday(&start, NULL);
@@ -231,51 +233,46 @@ int main(int argc, char *argv[]) {
 	printf("\nComputing FTLE (SYCL)...                     ");
 	{  
 		/*Creating SYCL BUFFERS*/
-		cl::sycl::buffer<double, 1> b_coords(coords, D1_RANGE(nPoints * nDim)); //check
-		cl::sycl::buffer<int, 1> b_faces(faces, D1_RANGE(nFaces * nVertsPerFace));  //check
-		cl::sycl::buffer<double, 1> b_flowmap(flowmap, D1_RANGE(nPoints*nDim));//check
-		cl::sycl::buffer<int, 1> b_nFacesPerPoint(nFacesPerPoint, D1_RANGE(nPoints)); //check
-		cl::sycl::buffer<int, 1> b_facesPerPoint(facesPerPoint, D1_RANGE(nFacesPerPoint[ nPoints - 1 ])); //check
-#ifdef GPU_ALL	
-		cl::sycl::buffer<int, 1> b_facesPerPoint_aux(facesPerPoint_aux, D1_RANGE(nFacesPerPoint[ nPoints - 1 ])); //check
-#endif
+		::buffer<double, 1> b_coords(coords, D1_RANGE(nPoints * nDim)); 
+		::buffer<int, 1> b_faces(faces, D1_RANGE(nFaces * nVertsPerFace)); 
+		::buffer<double, 1> b_flowmap(flowmap, D1_RANGE(nPoints*nDim));
+		::buffer<int, 1> b_nFacesPerPoint(nFacesPerPoint, D1_RANGE(nPoints)); 
+		::buffer<int, 1> b_facesPerPoint(facesPerPoint, D1_RANGE(nFacesPerPoint[ nPoints - 1 ])); 
+		::buffer<int, 1> b_faces0(facesPerPoint + offsets_faces[0], D1_RANGE(v_points_faces[0]));	
+		::buffer<int, 1> b_faces1(facesPerPoint + offsets_faces[1], D1_RANGE(v_points_faces[1]));	
+		::buffer<int, 1> b_faces2(facesPerPoint + offsets_faces[2], D1_RANGE(v_points_faces[2]));
+		::buffer<int, 1> b_faces3(facesPerPoint + offsets_faces[3], D1_RANGE(v_points_faces[3]));		
 		::buffer<double, 1> b_logSqrt0(logSqrt + offsets[0], D1_RANGE(v_points[0]));
 		::buffer<double, 1> b_logSqrt1(logSqrt + offsets[1], D1_RANGE(v_points[1]));		
 		::buffer<double, 1> b_logSqrt2(logSqrt + offsets[2], D1_RANGE(v_points[2]));
 		::buffer<double, 1> b_logSqrt3(logSqrt + offsets[3], D1_RANGE(v_points[3]));	
 		
         	/*First Kernel for preprocessing */
-#ifdef GPU_ALL	
-		create_facesPerPoint_vector(&preproc_queue, nDim, nPoints, nFaces, nVertsPerFace, &b_faces, &b_nFacesPerPoint, &b_facesPerPoint_aux);
-		q_cpu.submit([&](handler &h){
-			auto faces1 = b_facesPerPoint_aux.get_access<access::mode::read>(h);
-			auto faces2 = b_facesPerPoint.get_access<access::mode::discard_write>(h);
-			h.parallel_for<class copy> (D1_RANGE(nFacesPerPoint[ nPoints - 1 ]), [=](id<1> i){
-				faces2[i]=faces1[i];
-			});
-		});
-		q_cpu.wait();
-#else       	
-		create_facesPerPoint_vector(&preproc_queue, nDim, nPoints, nFaces, nVertsPerFace, &b_faces, &b_nFacesPerPoint, &b_facesPerPoint );
-		preproc_queue.wait();
-#endif 		
+   	
+		for(int d=0; d < nGpus; d++){
+			create_facesPerPoint_vector(&queues[d], nDim, v_points[d], offsets[d], nFaces, nVertsPerFace, &b_faces, &b_nFacesPerPoint,
+			(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))));
+		}
+ 		
+		for(int d =0; d < nGpus; d++)
+	       	queues[d].wait();	
 		gettimeofday(&preprocess, NULL);
 		
-		
         /* Compute gradient, tensors and ATxA based on neighbors flowmap values, then get the max eigenvalue */
-       for(int d=0; d < nGpus; d++){
+       	for(int d=0; d < nGpus; d++){
 			if ( nDim == 2 ){
-				compute_gradient_2D ( &queues[d], v_points[d], offsets[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, &b_facesPerPoint, 
+				compute_gradient_2D ( &queues[d], v_points[d], offsets[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint,
+				 	(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))), 
 					(d==0 ? &b_logSqrt0 : (d==1 ? &b_logSqrt1 : (d==2 ? &b_logSqrt2 : &b_logSqrt3))), t_eval);
-		  	}
-			else{
-				compute_gradient_3D  ( &queues[d], v_points[d], offsets[d],  nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, &b_facesPerPoint, 
+		  	}else{
+				compute_gradient_3D  ( &queues[d], v_points[d], offsets[d],  nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, 
+					(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))), 
 					(d==0 ? &b_logSqrt0 : (d==1 ? &b_logSqrt1 : (d==2 ? &b_logSqrt2 : &b_logSqrt3))), t_eval);
 		   	}
-	    }
-	    for(int d =0; d < nGpus; d++)
-	       	queues[d].wait();	
-	    gettimeofday(&end, NULL);      	  	
+		}
+		for(int d =0; d < nGpus; d++)
+		  	queues[d].wait();	
+		gettimeofday(&end, NULL);      	  	
 	}
 	/* Time */
 	printf("DONE\n\n");

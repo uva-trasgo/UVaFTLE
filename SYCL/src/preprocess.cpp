@@ -122,8 +122,33 @@ void create_nFacesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVert
         }	
 }
 
+void create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int offset, int nFaces, int nVertsPerFace, cl::sycl::buffer<int, 1> *b_faces, cl::sycl::buffer<int, 1> *b_nFacesPerPoint, cl::sycl::buffer<int, 1> *b_facesPerPoint)
+{
+	q->submit([&](handler &h){
+		auto faces = b_faces->get_access<access::mode::read>(h);
+		auto nFacesPerPoint = b_nFacesPerPoint->get_access<access::mode::read>(h);
+		auto facesPerPoint = b_facesPerPoint->get_access<access::mode::discard_write>(h);
+		h.parallel_for<class preprocess> (range<1>{static_cast<size_t>(nPoints)}, [=](id<1> i){
+			int ip, count, iface, ipf, nFacesP, iFacesP, faces_offset;   
+			count = 0;
+			ip= i[0]+offset;	
+			faces_offset = (offset == 0) ? 0 :  nFacesPerPoint[offset-1];
+			iFacesP = ( ip == 0 ) ? 0 : nFacesPerPoint[ip-1];
+			nFacesP = ( ip == 0 ) ? nFacesPerPoint[ip] : nFacesPerPoint[ip] - nFacesPerPoint[ip-1];
+			for ( iface = 0; ( iface < nFaces ) && ( count < nFacesP ); iface++ ){     
+				for ( ipf = 0; ipf < nVertsPerFace; ipf++ ){       
+					if ( faces[iface * nVertsPerFace + ipf] == ip ){
+						facesPerPoint[iFacesP - faces_offset + count] = iface;
+						count++;
+					}
+				}
+			}
+		}); /*End parallel for*/
+	}); /*End submit*/	
+}
 
-void create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int nFaces, int nVertsPerFace, cl::sycl::buffer<int, 1> *b_faces, cl::sycl::buffer<int, 1> *b_nFacesPerPoint, cl::sycl::buffer<int, 1> *b_facesPerPoint)
+
+void create_facesPerPoint_vector2 (queue* q, int nDim, int nPoints, int nFaces, int nVertsPerFace, cl::sycl::buffer<int, 1> *b_faces, cl::sycl::buffer<int, 1> *b_nFacesPerPoint, cl::sycl::buffer<int, 1> *b_facesPerPoint)
 {
 	q->submit([&](handler &h){
 		auto faces = b_faces->get_access<access::mode::read>(h);

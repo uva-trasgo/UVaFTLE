@@ -51,7 +51,7 @@ void compute_gradient_2D (queue* q, int nPoints, int offset, int nVertsPerFace, 
 			int ip = i[0] + offset;
 #endif		
 			int nDim = 2; 
-			int iface, nFaces, idxface, ivert;
+			int iface, nFaces, idxface, ivert, faces_offset;
 			int closest_points_0 = -1;
 			int closest_points_1 = -1;
 			int closest_points_2 = -1;
@@ -61,13 +61,13 @@ void compute_gradient_2D (queue* q, int nPoints, int offset, int nVertsPerFace, 
 			double denom_x, denom_y;
 			double gra10, gra11, gra20, gra21;
 			double ftle_matrix[4], d_W_ei[2];
-
+			faces_offset = (offset == 0) ? 0 :  nFacesPerPoint[offset-1];
 			nFaces  = (ip == 0) ? nFacesPerPoint[ip] : nFacesPerPoint[ip] - nFacesPerPoint[ip-1];
 			/* Find 4 closest points */
 			
 			for ( iface = 0; (iface < nFaces) && (count < 4); iface++ )
 			{
-				idxface = (ip == 0) ? facesPerPoint[iface] : facesPerPoint[nFacesPerPoint[ip-1] + iface];
+				idxface = (ip == 0) ? facesPerPoint[iface] : facesPerPoint[nFacesPerPoint[ip-1] + iface - faces_offset];
 				for ( ivert = 0; (ivert < nVertsPerFace) && (count < 4); ivert++ )
 				{
 					ivertex = faces[idxface * nVertsPerFace + ivert];
@@ -225,7 +225,7 @@ void compute_gradient_3D (queue* q,  int nPoints, int offset, int nVertsPerFace,
 			int ip = i[0] + offset;
 #endif		
 			int nDim = 3; 
-			int iface, nFaces, idxface, ivert;
+			int iface, nFaces, idxface, ivert, faces_offset;
 			int closest_points_0 = -1;
 			int closest_points_1 = -1;
 			int closest_points_2 = -1;
@@ -238,11 +238,12 @@ void compute_gradient_3D (queue* q,  int nPoints, int offset, int nVertsPerFace,
 			double denom_x, denom_y, denom_z;
 			double ftle_matrix[9];
 			double gra10, gra11, gra12, gra20, gra21, gra22, gra30, gra31, gra32;
+			faces_offset = (offset == 0) ? 0 :  nFacesPerPoint[offset-1];
 			nFaces  = (ip == 0) ? nFacesPerPoint[ip] : nFacesPerPoint[ip] - nFacesPerPoint[ip-1];
 
 			/* Find 6 closest points */
 			for ( iface = 0; (iface < nFaces) && (count < 6); iface++ )	{
-				idxface = (ip == 0) ? facesPerPoint[iface] : facesPerPoint[nFacesPerPoint[ip-1] + iface];
+				idxface = (ip == 0) ? facesPerPoint[iface] : facesPerPoint[nFacesPerPoint[ip-1] + iface - faces_offset];
 				for ( ivert = 0; (ivert < nVertsPerFace) && (count < 6); ivert++ )
 				{
 					ivertex = faces[idxface * nVertsPerFace + ivert];
