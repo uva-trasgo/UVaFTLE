@@ -58,6 +58,7 @@ std::vector<queue> get_queues_from_platform(int plat, int nGpus){
 			std::vector<queue> queues(nGpus);
 			for (int d=0; d< nGpus; d++){
 				printf("Dispositivo %d: %s\n", d, devs[d].get_info<info::device::name>().c_str());
+				printf("Dispositivo %d: %s\n", d, devs[d].get_info<info::device::name>().c_str());
 				queues[d] = queue(devs[d], property_list);
 			}
 			return queues;
@@ -173,8 +174,8 @@ int main(int argc, char *argv[]) {
 	fflush(stdout);
 
 	/* Allocate additional memory at the CPU */   
-	logSqrt        = (double*) malloc( sizeof(double) * nPoints);   
 	nFacesPerPoint = (int *) malloc( sizeof(int) * nPoints ); /* REMARK: nFacesPerPoint accumulates previous nFacesPerPoint */
+    logSqrt        = (double*) malloc( sizeof(double) * nPoints);   
      /* Assign faces to vertices and generate nFacesPerPoint and facesPerPoint GPU vectors */
      create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
 	facesPerPoint = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
@@ -239,7 +240,6 @@ int main(int argc, char *argv[]) {
 		::buffer<int, 1> b_faces(faces, D1_RANGE(nFaces * nVertsPerFace)); 
 		::buffer<double, 1> b_flowmap(flowmap, D1_RANGE(nPoints*nDim));
 		::buffer<int, 1> b_nFacesPerPoint(nFacesPerPoint, D1_RANGE(nPoints)); 
-		::buffer<int, 1> b_facesPerPoint(facesPerPoint, D1_RANGE(nFacesPerPoint[ nPoints - 1 ])); 
 		::buffer<int, 1> b_faces0(facesPerPoint + offsets_faces[0], D1_RANGE(v_points_faces[0]));	
 		::buffer<int, 1> b_faces1(facesPerPoint + offsets_faces[1], D1_RANGE(v_points_faces[1]));	
 		::buffer<int, 1> b_faces2(facesPerPoint + offsets_faces[2], D1_RANGE(v_points_faces[2]));
@@ -252,9 +252,10 @@ int main(int argc, char *argv[]) {
         	/*First Kernel for preprocessing */
    	
 		for(int d=0; d < nGpus; d++){
-			event_list[d] = create_facesPerPoint_vector(&queues[d], nDim, v_points[d], offsets[d], nFaces, nVertsPerFace, &b_faces, &b_nFacesPerPoint,
+			event_list[d] = create_facesPerPoint_vector(&queues[d], nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, &b_faces, &b_nFacesPerPoint,
 			(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))));
 		}
+		
         /* Compute gradient, tensors and ATxA based on neighbors flowmap values, then get the max eigenvalue */
        	for(int d=0; d < nGpus; d++){
 			if ( nDim == 2 ){
