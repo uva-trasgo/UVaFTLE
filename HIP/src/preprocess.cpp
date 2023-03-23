@@ -145,9 +145,9 @@ void create_facesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVerts
         }
 }
 
-__global__ void create_facesPerPoint_vector_GPU ( int nDim, int nPoints, int nFaces, int nVertsPerFace, int *faces, int *nFacesPerPoint, int *facesPerPoint )
+__global__ void create_facesPerPoint_vector_GPU ( int stride, int nDim, int nPoints, int nFaces, int nVertsPerFace, int *faces, int *nFacesPerPoint, int *facesPerPoint )
 {
-        int th_id = blockIdx.x*blockDim.x + threadIdx.x;
+        int th_id = blockIdx.x*blockDim.x + threadIdx.x + stride;
 
         if (th_id < nPoints){
                 int ip, count, iface, ipf, nFacesP, iFacesP;

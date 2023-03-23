@@ -74,15 +74,16 @@ int main(int argc, char *argv[]) {
     FILE *file;
 
     double  t_eval =  atof(argv[5]), maxTime;
-    double  times[10];
+    double  kernel_times[10];
+    double  preproc_times[10];
     int     numThreads=0;
     double *coords;
     double *flowmap;
-    int    *faces, *d2_faces;
+    int    *faces;
     double *logSqrt;
 
-    int    *nFacesPerPoint, *d2_nFacesPerPoint;
-    int    *facesPerPoint,  *d2_facesPerPoint;
+    int    *nFacesPerPoint;
+    int    *facesPerPoint;
 
 
     /* Obtain and show GPU devices information */
@@ -155,7 +156,6 @@ int main(int argc, char *argv[]) {
     fflush(stdout);
 
     /* Allocate additional memory at the CPU */    
-    logSqrt        = (double*) malloc( sizeof(double) * nPoints);       
     nFacesPerPoint = (int *) malloc( sizeof(int) * nPoints ); /* REMARK: nFacesPerPoint accumulates previous nFacesPerPoint */
 #ifdef PINNED
     cudaHostAlloc( (void **) &logSqrt, sizeof(double) * nPoints,cudaHostAllocMapped);
@@ -169,22 +169,16 @@ int main(int argc, char *argv[]) {
     create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
     facesPerPoint = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
 
-    cudaMalloc( &d2_facesPerPoint, sizeof(int)    *   nFacesPerPoint[ nPoints - 1 ]); 
-    cudaMalloc( &d2_faces,   sizeof(int)    * nFaces  * nVertsPerFace ); 
-    cudaMalloc( &d2_nFacesPerPoint, sizeof(int)    * nPoints); 
-    cudaMemcpy( d2_faces,   faces,   sizeof(int)    * nFaces  * nVertsPerFace, cudaMemcpyHostToDevice ); 
-    cudaMemcpy( d2_nFacesPerPoint, nFacesPerPoint, sizeof(int) * nPoints,                       cudaMemcpyHostToDevice );  
-    create_facesPerPoint_vector_GPU<<<(ceil(    (double)nPoints/(double)blockSize)  +1),blockSize>>> ( nDim, nPoints, nFaces, nVertsPerFace, 
-        d2_faces, d2_nFacesPerPoint, d2_facesPerPoint );
-    cudaMemcpy( facesPerPoint,   d2_facesPerPoint,   sizeof(int)    * nFacesPerPoint[ nPoints - 1 ], cudaMemcpyDeviceToHost ); 
 #ifdef PINNED
     printf("\nComputing FTLE (pinned)...                                 ");
 #else
     printf("\nComputing FTLE (non pinned)...                                 ");
 #endif
     fflush(stdout);
-
-    #pragma omp parallel default(none)  shared(stdout, logSqrt, nDim, nPoints, nFaces, nVertsPerFace, numThreads, times, faces, coords, nFacesPerPoint, facesPerPoint, flowmap, t_eval)   //shared(sched_chunk_size, t_eval, npoints, nteval, result, mesh, d_cuda_coords_vector, d_cuda_coords_vector2, d_cuda_velocity_vector, d_cuda_velocity_vector2, d_cuda_faces_vector, d_cuda_faces_vector2, d_cuda_times_vector, d_cuda_times_vector2, nsteps_rk4, numBlocks) private(ip, it, itprev) firstprivate(multigpu)
+	struct timeval gtimeS;
+	
+	gettimeofday(&gtimeS, NULL);
+    #pragma omp parallel default(none)  shared(stdout, logSqrt, nDim, nPoints, nFaces, nVertsPerFace, numThreads, preproc_times, kernel_times, faces, coords, nFacesPerPoint, facesPerPoint, flowmap, t_eval)   //shared(sched_chunk_size, t_eval, npoints, nteval, result, mesh, d_cuda_coords_vector, d_cuda_coords_vector2, d_cuda_velocity_vector, d_cuda_velocity_vector2, d_cuda_faces_vector, d_cuda_faces_vector2, d_cuda_times_vector, d_cuda_times_vector2, nsteps_rk4, numBlocks) private(ip, it, itprev) firstprivate(multigpu)
     {
         numThreads = omp_get_num_threads();
         cudaError_t error;
@@ -233,10 +227,11 @@ int main(int argc, char *argv[]) {
         /* Create dim3 for GPU */
         dim3 block(blockSize);
         int numBlocks = (int) (ceil((double)nPoints/(double)block.x)+1);
-        numBlocks = numBlocks/omp_get_num_threads() + 1; 
+        numBlocks = (numBlocks/omp_get_num_threads()) + 1; 
         dim3 grid_numCoords(numBlocks);
 
         struct timeval start;
+        struct timeval preproc;
         struct timeval end;                 
         double time;
         int size =   omp_get_num_threads()==1 ?   0: nPoints / omp_get_num_threads();
@@ -250,6 +245,11 @@ int main(int argc, char *argv[]) {
         gettimeofday(&start, NULL);
 
         /* STEP 1: compute gradient, tensors and ATxA based on neighbors flowmap values */
+        create_facesPerPoint_vector_GPU<<<grid_numCoords, block>>> (localStride, nDim, nPoints, nFaces, nVertsPerFace, 
+            d_faces, d_nFacesPerPoint, d_facesPerPoint);
+        cudaDeviceSynchronize();
+        /* Time */
+		gettimeofday(&preproc, NULL);
 
 #ifndef PINNED
         if ( nDim == 2 )
@@ -262,8 +262,6 @@ int main(int argc, char *argv[]) {
                 nPoints, nVertsPerFace, 
                 d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, 
                 d_logSqrt, t_eval);
-
-        cudaMemcpy (&logSqrt[localStride],  &d_logSqrt[localStride], sizeof(double) * (nPoints / omp_get_num_threads()), cudaMemcpyDeviceToHost);
 #else
         if ( nDim == 2 )
             gpu_compute_gradient_2D <<<grid_numCoords, block,0, streams[0]>>> (localStride,
@@ -276,18 +274,21 @@ int main(int argc, char *argv[]) {
                 d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, 
                  d_logSqrt, t_eval);
 
-        cudaMemcpyAsync (&logSqrt[localStride],  &d_logSqrt[localStride], sizeof(double) * (nPoints / omp_get_num_threads()), cudaMemcpyDeviceToHost,streams[0]);
 #endif
-
-
-cudaDeviceSynchronize();
-        /* Time */
-        gettimeofday(&end, NULL);
-
-        /* Show time */   
-        time = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec)/1000000.0;
-
-        times[omp_get_thread_num()] = time;
+		cudaDeviceSynchronize();
+		
+        /* Show time */         /* Time */
+		gettimeofday(&end, NULL);
+		time = (preproc.tv_sec - start.tv_sec) + (preproc.tv_usec - start.tv_usec)/1000000.0;
+		preproc_times[omp_get_thread_num()] = time*1000;
+		time = (end.tv_sec - preproc.tv_sec) + (end.tv_usec - preproc.tv_usec)/1000000.0;
+		kernel_times[omp_get_thread_num()] = time*1000;
+#ifndef PINNED
+		cudaMemcpy (&logSqrt[localStride],  &d_logSqrt[localStride], sizeof(double) * (nPoints / omp_get_num_threads()), cudaMemcpyDeviceToHost);
+#else
+		cudaMemcpyAsync (&logSqrt[localStride],  &d_logSqrt[localStride], sizeof(double) * (nPoints / omp_get_num_threads()), cudaMemcpyDeviceToHost,streams[0]);
+#endif
+	  cudaDeviceSynchronize();
 
         error = cudaGetLastError();
         if ( error != cudaSuccess )
@@ -313,6 +314,9 @@ cudaDeviceSynchronize();
 
         //cudaDeviceReset();
     }
+    struct timeval gtimeF;
+    gettimeofday(&gtimeF, NULL);
+    double time = (gtimeF.tv_sec - gtimeS.tv_sec) + (gtimeF.tv_usec - gtimeS.tv_usec)/1000000.0;
     printf("DONE\n\n");
     printf("--------------------------------------------------------\n");
     fflush(stdout);
@@ -322,7 +326,7 @@ cudaDeviceSynchronize();
     {
         printf("\nWriting result in output file...                  ");
         fflush(stdout);
-        FILE *fp_w = fopen("result_FTLE.csv", "w");
+        FILE *fp_w = fopen("cuda_result.csv", "w");
         for ( int ii = 0; ii < nPoints ; ii++ )
             fprintf(fp_w, "%f\n", logSqrt[ii]);
         fclose(fp_w);
@@ -332,12 +336,12 @@ cudaDeviceSynchronize();
     }
 
     /* Show execution time */
-    maxTime = times[0];
-    for ( int i = 1; i < numThreads; i++){
-        if (times[i] > maxTime)
-            maxTime = times[i];
-    }
-    printf("\nExecution time (seconds): %f\n\n", maxTime);
+    printf("Execution times in miliseconds\n");
+	printf("Device Num;  Preproc kernel; FTLE kernel\n");
+	for(int d = 0; d <  numThreads; d++){
+		printf("%d; %f; %f\n", d, preproc_times[d], kernel_times[d]);
+	}
+	printf("Global time: %f:\n", time);
     printf("--------------------------------------------------------\n");
     fflush(stdout);
     

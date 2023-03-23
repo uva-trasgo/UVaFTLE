@@ -2,9 +2,9 @@
 #include "arithmetic.h"
 #include <hip/hip_runtime.h>
 
-__global__ void gpu_compute_gradient_2D ( int stride, int numCoords, int nVertsPerFace, double *coords, double *flowmap, int *faces, int *nFacesPerPoint, int *facesPerPoint, double *ftle_matrix, double *d_W_ei, double *d_logSqrt, double T) //double *gra1, double *gra2 )
+__global__ void gpu_compute_gradient_2D ( int stride, int numCoords, int nVertsPerFace, double *coords, double *flowmap, int *faces, int *nFacesPerPoint, int *facesPerPoint, double *d_logSqrt, double T) 
 {
-    int th_id = blockIdx.x*blockDim.x + threadIdx.x + stride;
+	int th_id = blockIdx.x*blockDim.x + threadIdx.x + stride;
 
     if (th_id < numCoords){ 
         int nDim = 2; 
@@ -18,6 +18,7 @@ __global__ void gpu_compute_gradient_2D ( int stride, int numCoords, int nVertsP
         int ivertex;
         double denom_x, denom_y;
 	double gra10, gra11, gra20, gra21;
+        double ftle_matrix[4], d_W_ei[2];
         nFaces  = (th_id == 0) ? nFacesPerPoint[th_id] : nFacesPerPoint[th_id] - nFacesPerPoint[th_id-1];
         /* Find 4 closest points */
 		
@@ -118,37 +119,37 @@ __global__ void gpu_compute_gradient_2D ( int stride, int numCoords, int nVertsP
                 gra21 = 1;//flowmap [ th_id * nDim + 1];
 			}
         }
-        ftle_matrix[th_id * nDim * nDim]     = gra10 * gra10 + gra11 * gra11;
-        ftle_matrix[th_id * nDim * nDim + 1] = gra10 * gra20 + gra11 * gra21;
-        ftle_matrix[th_id * nDim * nDim + 2] = gra20 * gra10 + gra21 * gra11;
-        ftle_matrix[th_id * nDim * nDim + 3] = gra20 * gra20 + gra21 * gra21;
 
-        gra10 = ftle_matrix[th_id * nDim * nDim];
-        gra11 = ftle_matrix[th_id * nDim * nDim + 1];
-        gra20 = ftle_matrix[th_id * nDim * nDim + 2];        
-        gra21 = ftle_matrix[th_id * nDim * nDim + 3];
+    ftle_matrix[0] = gra10 * gra10 + gra11 * gra11;
+    ftle_matrix[1] = gra10 * gra20 + gra11 * gra21;
+    ftle_matrix[2] = gra20 * gra10 + gra21 * gra11;
+    ftle_matrix[3] = gra20 * gra20 + gra21 * gra21;
 
-        ftle_matrix[th_id * nDim * nDim] = gra10 * gra10 + gra11 * gra11;
-        ftle_matrix[th_id * nDim * nDim + 1] = gra10 * gra20 + gra11 * gra21;
-        ftle_matrix[th_id * nDim * nDim + 2] = gra20 * gra10 + gra21 * gra11;
-        ftle_matrix[th_id * nDim * nDim + 3] = gra20 * gra20 + gra21 * gra21;
+    gra10 = ftle_matrix[0];
+    gra11 = ftle_matrix[1];
+    gra20 = ftle_matrix[2];        
+    gra21 = ftle_matrix[3];
 
-		double A10 = ftle_matrix[th_id * nDim * nDim];
-        double A11 = ftle_matrix[th_id * nDim * nDim + 1];
-        double A20 = ftle_matrix[th_id * nDim * nDim + 2];        
-        double A21 = ftle_matrix[th_id * nDim * nDim + 3];
+    ftle_matrix[0] = gra10 * gra10 + gra11 * gra11;
+    ftle_matrix[1] = gra10 * gra20 + gra11 * gra21;
+    ftle_matrix[2] = gra20 * gra10 + gra21 * gra11;
+    ftle_matrix[3] = gra20 * gra20 + gra21 * gra21;
 
-		double sq = sqrt(A21 * A21 + A10 * A10 - 2 * (A10 * A21) + 4 * (A11 * A20));
-        d_W_ei[th_id*nDim] = (A21 + A10 + sq) / 2;
-        d_W_ei[th_id*nDim+1] = (A21 + A10 - sq) / 2; 
+    double A10 = ftle_matrix[0];
+    double A11 = ftle_matrix[1];
+    double A20 = ftle_matrix[2];        
+    double A21 = ftle_matrix[3];
 
-		//---------------- max---sqrt---log
+    double sq = sqrt(A21 * A21 + A10 * A10 - 2 * (A10 * A21) + 4 * (A11 * A20));
+    d_W_ei[0] = (A21 + A10 + sq) / 2;
+    d_W_ei[1] = (A21 + A10 - sq) / 2; 
+
+	//---------------- max---sqrt---log
 
 
-		double max = d_W_ei[th_id*nDim];	 //d_w[th_id*nDim];      
-        
-        if (d_W_ei[th_id*nDim + 1] > max ) max = d_W_ei[th_id*nDim + 1];
-                
+	double max = d_W_ei[0];	 //d_w[ip*nDim];      
+
+	if (d_W_ei[1] > max ) max = d_W_ei[1];                
         max = sqrt(max);
         max = log (max);
         d_logSqrt[th_id] = max / T;		
@@ -158,7 +159,8 @@ __global__ void gpu_compute_gradient_2D ( int stride, int numCoords, int nVertsP
 }
 
 
-__global__ void gpu_compute_gradient_3D ( int stride, int numCoords, int nVertsPerFace, double *coords, double *flowmap, int *faces, int *nFacesPerPoint, int *facesPerPoint, double *ftle_matrix, double*d_W_ei, double *d_logSqrt, double T) //double *gra1, double *gra2 )
+__global__ void gpu_compute_gradient_3D ( int stride, int numCoords, int nVertsPerFace, double *coords, double *flowmap, int *faces, int *nFacesPerPoint, int *facesPerPoint,
+double *d_logSqrt, double T) //double *gra1, double *gra2 )
 {
     int th_id = blockIdx.x*blockDim.x + threadIdx.x + stride;
 
@@ -175,6 +177,7 @@ __global__ void gpu_compute_gradient_3D ( int stride, int numCoords, int nVertsP
 	
         int ivertex;
         double denom_x, denom_y, denom_z;
+	double ftle_matrix[9];
 	double gra10, gra11, gra12, gra20, gra21, gra22, gra30, gra31, gra32;
         nFaces  = (th_id == 0) ? nFacesPerPoint[th_id] : nFacesPerPoint[th_id] - nFacesPerPoint[th_id-1];
         
@@ -305,55 +308,45 @@ __global__ void gpu_compute_gradient_3D ( int stride, int numCoords, int nVertsP
         }
 
         /* Tens */
-        ftle_matrix[th_id * nDim * nDim]     = gra10 * gra10 + gra20 * gra20 + gra30 * gra30;
-        ftle_matrix[th_id * nDim * nDim + 1] = gra10 * gra11 + gra20 * gra21 + gra30 * gra31;
-        ftle_matrix[th_id * nDim * nDim + 2] = gra10 * gra12 + gra20 * gra22 + gra30 * gra32;
-        ftle_matrix[th_id * nDim * nDim + 3] = ftle_matrix[th_id * nDim * nDim + 1]; //gra20 * gra10 + gra21 * gra11 + gra22 * gra12;
-        ftle_matrix[th_id * nDim * nDim + 4] = gra11 * gra11 + gra21 * gra21 + gra31 * gra31;
-        ftle_matrix[th_id * nDim * nDim + 5] = gra11 * gra12 + gra11 * gra22 + gra31 * gra32;
-        ftle_matrix[th_id * nDim * nDim + 6] = ftle_matrix[th_id * nDim * nDim + 2]; //gra30 * gra10 + gra31 * gra11 + gra32 * gra12;
-        ftle_matrix[th_id * nDim * nDim + 7] = ftle_matrix[th_id * nDim * nDim + 5]; //gra30 * gra20 + gra31 * gra21 + gra32 * gra22;
-        ftle_matrix[th_id * nDim * nDim + 8] = gra12 * gra12 + gra22 * gra22 + gra32 * gra32;
+    ftle_matrix[0] = gra10 * gra10 + gra20 * gra20 + gra30 * gra30;
+    ftle_matrix[1] = gra10 * gra11 + gra20 * gra21 + gra30 * gra31;
+    ftle_matrix[2] = gra10 * gra12 + gra20 * gra22 + gra30 * gra32;
+    ftle_matrix[3] = ftle_matrix[1];
+    ftle_matrix[4] = gra11 * gra11 + gra21 * gra21 + gra31 * gra31;
+    ftle_matrix[5] = gra11 * gra12 + gra11 * gra22 + gra31 * gra32;
+    ftle_matrix[6] = ftle_matrix[2];
+    ftle_matrix[7] = ftle_matrix[5];
+    ftle_matrix[8] = gra12 * gra12 + gra22 * gra22 + gra32 * gra32;
 
-        // Store copy to later multiply by transpose 
-        gra10 = ftle_matrix[th_id * nDim * nDim];
-        gra11 = ftle_matrix[th_id * nDim * nDim + 1];
-        gra12 = ftle_matrix[th_id * nDim * nDim + 2];        
-        gra20 = ftle_matrix[th_id * nDim * nDim + 3];
-		gra21 = ftle_matrix[th_id * nDim * nDim + 4];
-        gra22 = ftle_matrix[th_id * nDim * nDim + 5];
-        gra30 = ftle_matrix[th_id * nDim * nDim + 6];        
-        gra31 = ftle_matrix[th_id * nDim * nDim + 7];
-        gra32 = ftle_matrix[th_id * nDim * nDim + 8];
+    // Store copy to later multiply by transpose 
+    gra10 = ftle_matrix[0];
+    gra11 = ftle_matrix[1];
+    gra12 = ftle_matrix[2];        
+    gra20 = ftle_matrix[3];
+    gra21 = ftle_matrix[4];
+    gra22 = ftle_matrix[5];
+    gra30 = ftle_matrix[6];        
+    gra31 = ftle_matrix[7];
+    gra32 = ftle_matrix[8];
 
-        // Matrix mult 
-        ftle_matrix[th_id * nDim * nDim]     = gra10 * gra10 + gra11 * gra11 + gra12 * gra12;
-        ftle_matrix[th_id * nDim * nDim + 1] = gra10 * gra20 + gra11 * gra21 + gra12 * gra22;
-        ftle_matrix[th_id * nDim * nDim + 2] = gra10 * gra30 + gra11 * gra31 + gra12 * gra32;
-        ftle_matrix[th_id * nDim * nDim + 3] = gra20 * gra10 + gra21 * gra11 + gra22 * gra12;
-        ftle_matrix[th_id * nDim * nDim + 4] = gra20 * gra20 + gra21 * gra21 + gra22 * gra22;
-        ftle_matrix[th_id * nDim * nDim + 5] = gra20 * gra30 + gra21 * gra31 + gra22 * gra32;
-        ftle_matrix[th_id * nDim * nDim + 6] = gra30 * gra10 + gra31 * gra11 + gra32 * gra12;
-        ftle_matrix[th_id * nDim * nDim + 7] = gra30 * gra20 + gra31 * gra21 + gra32 * gra22;
-        ftle_matrix[th_id * nDim * nDim + 8] = gra30 * gra30 + gra31 * gra31 + gra32 * gra32;
+    // Matrix mult 
+    double A10 = gra10 * gra10 + gra11 * gra11 + gra12 * gra12;
+    double A11 = gra10 * gra20 + gra11 * gra21 + gra12 * gra22;
+    double A12 = gra10 * gra30 + gra11 * gra31 + gra12 * gra32;
+    double A20 = gra20 * gra10 + gra21 * gra11 + gra22 * gra12;
+    double A21 = gra20 * gra20 + gra21 * gra21 + gra22 * gra22;
+    double A22 = gra20 * gra30 + gra21 * gra31 + gra22 * gra32;
+    double A30 = gra30 * gra10 + gra31 * gra11 + gra32 * gra12;
+    double A31 = gra30 * gra20 + gra31 * gra21 + gra32 * gra22;
+    double A32 = gra30 * gra30 + gra31 * gra31 + gra32 * gra32;
 
-
-		double A10 = ftle_matrix[th_id * nDim * nDim];
-        double A11 = ftle_matrix[th_id * nDim * nDim + 1];
-        double A12 = ftle_matrix[th_id * nDim * nDim + 2];        
-        double A20 = ftle_matrix[th_id * nDim * nDim + 3];
-		double A21 = ftle_matrix[th_id * nDim * nDim + 4];
-        double A22 = ftle_matrix[th_id * nDim * nDim + 5];
-        double A30 = ftle_matrix[th_id * nDim * nDim + 6];        
-        double A31 = ftle_matrix[th_id * nDim * nDim + 7];
-        double A32 = ftle_matrix[th_id * nDim * nDim + 8];
 
 		double a = -1;
         double b = A10 + A21 + A32;
         double c = A12 * A30 + A22 * A31 + A11 * A20 - A10 * A21 - A10 * A32 - A21 * A32;
         double d = A10 * A21 * A32 + A11 * A22 * A30 + A12 * A20 * A31
                  - A10 * A22 * A31 - A11 * A20 * A32 - A12 * A21 * A30; 
-
+	double d_W_ei[3];
 		double x1, x2, x3;
 		double A   = b*b - 3*a*c;
 		double B   = b*c - 9*a*d;
@@ -379,14 +372,14 @@ __global__ void gpu_compute_gradient_3D ( int stride, int numCoords, int nVertsP
 		} 
 
 
-		d_W_ei[th_id*nDim] =		x1;	 
-		d_W_ei[th_id*nDim + 1] = 	x2;
-		d_W_ei[th_id*nDim + 2] = 	x3;
+		d_W_ei[0] =		x1;	 
+		d_W_ei[1] = 	x2;
+		d_W_ei[2] = 	x3;
 
-        double max = d_W_ei[th_id*nDim];
+        double max = d_W_ei[0];
         
-        if (d_W_ei[th_id*nDim + 1] > max ) max = d_W_ei[th_id*nDim + 1];
-        if (d_W_ei[th_id*nDim + 2] > max ) max = d_W_ei[th_id*nDim + 2];
+        if (d_W_ei[1] > max ) max = d_W_ei[1];
+        if (d_W_ei[2] > max ) max = d_W_ei[2];
                 
         max = sqrt(max);
         max = log (max);
