@@ -16,6 +16,7 @@ Package dependencies:
 * cmake (>= 3.8)
 * OpenMP
 * Cuda Toolkit
+* Intel FPGA SDK for OpenCL (if compiling the FPGA implementation)
 
 
 Once the package has been obtained, simply run:
