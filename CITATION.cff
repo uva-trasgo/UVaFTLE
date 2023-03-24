@@ -1,56 +1,80 @@
 cff-version: 1.2.0
-title: >-
-  UVaFTLE: Lagrangian finite time Lyapunov exponent
-  extraction for fluid dynamic applications
 message: >-
   If you write a scientific paper describing research that
   makes substantive use of UVaFTLE , we would appreciate
   that you cite the following paper:
-type: article
 authors:
-  - given-names: Rocío
-    family-names: Carratalá-Sáez
+  - given-names: "Rocío"
+    family-names: "Carratalá-Sáez"
     orcid: 'https://orcid.org/0000-0001-8409-2421'
-  - given-names: Yuri
-    family-names: Torres
+  - given-names: "Yuri"
+    family-names: "Torres"
     orcid: 'https://orcid.org/0000-0002-3037-3567'
-  - given-names: José
-    family-names: Sierra-Pallares
+  - given-names: "José"
+    family-names: "Sierra-Pallares"
     orcid: 'https://orcid.org/0000-0003-1565-9337'
-  - given-names: Sergio
-    family-names: López-Huguet
+  - given-names: "Sergio"
+    family-names: "López-Huguet"
     orcid: 'https://orcid.org/0000-0002-6523-6108'
-  - given-names: Diego R.
-    family-names: Llanos
+  - given-names: "Diego R."
+    family-names: "Llanos"
     orcid: 'https://orcid.org/0000-0001-6240-9109'
-doi: '10.1007/s11227-022-05017-x'
-journal: 'The Journal of Supercomputing'
-abstract: >-
-  The determination of Lagrangian Coherent Structures (LCS)
-  is becoming very important in several disciplines,
-  including cardiovascular engineering, aerodynamics, and
-  geophysical fluid dynamics. From the computational point
-  of view, the extraction of LCS consists of two main steps:
-  The flowmap computation and the resolution of Finite Time
-  Lyapunov Exponents (FTLE). In this work, we focus on the
-  design, implementation, and parallelization of the FTLE
-  resolution. We offer an in-depth analysis of this
-  procedure, as well as an open source C implementation
-  (UVaFTLE) parallelized using OpenMP directives to attain a
-  fair parallel efficiency in shared-memory environments. We
-  have also implemented CUDA kernels that allow UVaFTLE to
-  leverage as many NVIDIA GPU devices as desired in order to
-  reach the best parallel efficiency. For the sake of
-  reproducibility and in order to contribute to open
-  science, our code is publicly available through GitHub.
-  Moreover, we also provide Docker containers to ease its
-  usage.
-keywords:
-  - Finite time Lyapunov exponent
-  - Lagrarian coherent structures
-  - OpenMP
-  - GPU
-  - Multithreading
-  - Multi-GPU
+title: >-
+  UVaFTLE: Lagrangian finite time Lyapunov exponent
+  extraction for fluid dynamic applications
 date-released: '2023-01-19'
-url: 'https://link.springer.com/article/10.1007/s11227-022-05017-x'
+url: 'https://github.com/uva-trasgo/UVaFTLE'
+preferred-citation:
+    type: article
+    authors:
+      - given-names: "Rocío"
+        family-names: "Carratalá-Sáez"
+        orcid: 'https://orcid.org/0000-0001-8409-2421'
+      - given-names: "Yuri"
+        family-names: "Torres"
+        orcid: 'https://orcid.org/0000-0002-3037-3567'
+      - given-names: "José"
+        family-names: "Sierra-Pallares"
+        orcid: 'https://orcid.org/0000-0003-1565-9337'
+      - given-names: "Sergio"
+        family-names: "López-Huguet""
+        orcid: 'https://orcid.org/0000-0002-6523-6108'
+      - given-names: "Diego R."
+        family-names: "Llanos"
+        orcid: 'https://orcid.org/0000-0001-6240-9109'
+    title: >-
+      UVaFTLE: Lagrangian finite time Lyapunov exponent
+      extraction for fluid dynamic applications
+    doi: '10.1007/s11227-022-05017-x'
+    journal: 'The Journal of Supercomputing'
+    month: 1
+    year: 2023
+    issn: "1573-0484"
+    abstract: >-
+      The determination of Lagrangian Coherent Structures (LCS)
+      is becoming very important in several disciplines,
+      including cardiovascular engineering, aerodynamics, and
+      geophysical fluid dynamics. From the computational point
+      of view, the extraction of LCS consists of two main steps:
+      The flowmap computation and the resolution of Finite Time
+      Lyapunov Exponents (FTLE). In this work, we focus on the
+      design, implementation, and parallelization of the FTLE
+      resolution. We offer an in-depth analysis of this
+      procedure, as well as an open source C implementation
+      (UVaFTLE) parallelized using OpenMP directives to attain a
+      fair parallel efficiency in shared-memory environments. We
+      have also implemented CUDA kernels that allow UVaFTLE to
+      leverage as many NVIDIA GPU devices as desired in order to
+      reach the best parallel efficiency. For the sake of
+      reproducibility and in order to contribute to open
+      science, our code is publicly available through GitHub.
+      Moreover, we also provide Docker containers to ease its
+      usage.
+    keywords:
+      - Finite time Lyapunov exponent
+      - Lagrarian coherent structures
+      - OpenMP
+      - GPU
+      - Multithreading
+      - Multi-GPU
+    
