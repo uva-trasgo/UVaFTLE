@@ -6,10 +6,10 @@ title: >-
   UVaFTLE: Lagrangian finite time Lyapunov exponent
   extraction for fluid dynamic applications
 message: >-
-  f you write a scientific paper describing research that
+  If you write a scientific paper describing research that
   makes substantive use of UVaFTLE , we would appreciate
   that you cite the following paper:
-type: software
+type: article
 authors:
   - given-names: Rocío
     family-names: Carratalá-Sáez
@@ -23,13 +23,11 @@ authors:
   - given-names: Sergio
     family-names: López-Huguet
     orcid: 'https://orcid.org/0000-0002-6523-6108'
-  - given-names: Diego
-    name-particle: R.
+  - given-names: Diego R.
     family-names: Llanos
     orcid: 'https://orcid.org/0000-0001-6240-9109'
-identifiers:
-  - type: doi
-    value: 10.1007/s11227-022-05017-x
+doi: '10.1007/s11227-022-05017-x'
+journal: 'The Journal of Supercomputing'
 repository-code: 'https://github.com/uva-trasgo/UVaFTLE'
 abstract: >-
   The determination of Lagrangian Coherent Structures (LCS)
@@ -59,3 +57,4 @@ keywords:
   - Multithreading
   - Multi-GPU
 date-released: '2023-01-19'
+url: 'https://link.springer.com/article/10.1007/s11227-022-05017-x'
