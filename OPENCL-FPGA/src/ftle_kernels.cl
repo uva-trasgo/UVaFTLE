@@ -68,42 +68,33 @@ kernel void fpga_compute_gradient_2D(int nPoints, int nVertsPerFace, double * re
                             count++;
                         }
                     }
-                    else
+                    /* (i+1, j) */
+                    else if ((coords[ivertex * nDim + 1] == coords[ip * nDim + 1]) && (coords[ivertex * nDim] > coords[ip * nDim]))
                     {
-                        /* (i+1, j) */
-                        if ((coords[ivertex * nDim + 1] == coords[ip * nDim + 1]) && (coords[ivertex * nDim] > coords[ip * nDim]))
+                        if (closest_points_1 == -1)
                         {
-                            if (closest_points_1 == -1)
-                            {
-                                closest_points_1 = ivertex;
-                                count++;
-                            }
+                            closest_points_1 = ivertex;
+                            count++;
                         }
-                        else
+                    }
+                    /* (i, j-1) */
+                    else if ((coords[ivertex * nDim] == coords[ip * nDim]) && (coords[ivertex * nDim + 1] < coords[ip * nDim + 1])) 
+                    {
+                        if (closest_points_2 == -1)
                         {
-                            /* (i, j-1) */
-                            if ((coords[ivertex * nDim] == coords[ip * nDim]) && (coords[ivertex * nDim + 1] < coords[ip * nDim + 1])) 
-                            {
-                                if (closest_points_2 == -1)
-                                {
-                                    closest_points_2 = ivertex;
-                                    count++;
-                                }
-                            }
-                            else
-                            {
-                                /* (i, j+1) */
-                                if ((coords[ivertex * nDim] == coords[ip * nDim]) && (coords[ivertex * nDim + 1] > coords[ip * nDim + 1]))
-                                {
-                                    if (closest_points_3 == -1)
-                                    {
-                                        closest_points_3 = ivertex;
-                                        count++;
-                                    }
-                                }
-                            }
+                            closest_points_2 = ivertex;
+                            count++;
                         }
-                    }            
+                    }
+                    /* (i, j+1) */
+                    else if ((coords[ivertex * nDim] == coords[ip * nDim]) && (coords[ivertex * nDim + 1] > coords[ip * nDim + 1]))
+                    {
+                        if (closest_points_3 == -1)
+                        {
+                            closest_points_3 = ivertex;
+                            count++;
+                        }
+                    }
                 }
             }
         }     
@@ -224,79 +215,64 @@ kernel void fpga_compute_gradient_3D(int nPoints, int nVertsPerFace, double * re
                             count++;
                         }
                     }
-                    else
+                    /* (i+1, j, k) */
+                    else if (  (coords[ivertex * nDim + 1] == coords[ip * nDim + 1]) 
+                        && (coords[ivertex * nDim + 2] == coords[ip * nDim + 2]) 
+                        && (coords[ivertex * nDim]     >  coords[ip * nDim]))
                     {
-                        /* (i+1, j, k) */
-                        if (  (coords[ivertex * nDim + 1] == coords[ip * nDim + 1]) 
-                            && (coords[ivertex * nDim + 2] == coords[ip * nDim + 2]) 
-                            && (coords[ivertex * nDim]     >  coords[ip * nDim]))
+                        if (closest_points_1 == -1)
                         {
-                            if (closest_points_1 == -1)
-                            {
-                                closest_points_1 = ivertex;
-                                count++;
-                            }
+                            closest_points_1 = ivertex;
+                            count++;
                         }
-                        else
+                    }
+                    /* (i, j-1, k) */
+                    else if (  (coords[ivertex * nDim]     == coords[ip * nDim]) 
+                        && (coords[ivertex * nDim + 2] == coords[ip * nDim + 2]) 
+                        && (coords[ivertex * nDim + 1] <  coords[ip * nDim + 1])) 
+                    {
+                        if (closest_points_2 == -1)
                         {
-                            /* (i, j-1, k) */
-                            if (  (coords[ivertex * nDim]     == coords[ip * nDim]) 
-                                && (coords[ivertex * nDim + 2] == coords[ip * nDim + 2]) 
-                                && (coords[ivertex * nDim + 1] <  coords[ip * nDim + 1])) 
-                            {
-                                if (closest_points_2 == -1)
-                                {
-                                    closest_points_2 = ivertex;
-                                    count++;
-                                }
-                            }
-                            else
-                            {
-                                /* (i, j+1, k) */
-                                if (  (coords[ivertex * nDim]     == coords[ip * nDim]) 
-                                    && (coords[ivertex * nDim + 2] == coords[ip * nDim + 2]) 
-                                    && (coords[ivertex * nDim + 1] >  coords[ip * nDim + 1]))
-                                {
-                                    if (closest_points_3 == -1)
-                                    {
-                                        closest_points_3 = ivertex;
-                                        count++;
-                                    }
-                                }
-                                else
-                                {
-                                    /* (i, j, k-1) */
-                                    if (  (coords[ivertex * nDim]     == coords[ip * nDim]) 
-                                        && (coords[ivertex * nDim + 1] == coords[ip * nDim + 1]) 
-                                        && (coords[ivertex * nDim + 2] <  coords[ip * nDim + 2]))
-                                    {
-                                        if (closest_points_4 == -1)
-                                        {
-                                            closest_points_4 = ivertex;
-                                            count++;
-                                        }
-                                    }
-                                    else
-                                    {
-                                        /* (i, j, k+1) */
-                                        if (  (coords[ivertex * nDim]     == coords[ip * nDim]) 
-                                            && (coords[ivertex * nDim + 1] == coords[ip * nDim + 1]) 
-                                            && (coords[ivertex * nDim + 2] >  coords[ip * nDim + 2]))
-                                        {
-                                            if (closest_points_5 == -1)
-                                            {
-                                                closest_points_5 = ivertex;
-                                                count++;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            closest_points_2 = ivertex;
+                            count++;
                         }
-                    }            
+                    }
+                    /* (i, j+1, k) */
+                    else if (  (coords[ivertex * nDim]     == coords[ip * nDim]) 
+                        && (coords[ivertex * nDim + 2] == coords[ip * nDim + 2]) 
+                        && (coords[ivertex * nDim + 1] >  coords[ip * nDim + 1]))
+                    {
+                        if (closest_points_3 == -1)
+                        {
+                            closest_points_3 = ivertex;
+                            count++;
+                        }
+                    }
+                    /* (i, j, k-1) */
+                    else if (  (coords[ivertex * nDim]     == coords[ip * nDim]) 
+                        && (coords[ivertex * nDim + 1] == coords[ip * nDim + 1]) 
+                        && (coords[ivertex * nDim + 2] <  coords[ip * nDim + 2]))
+                    {
+                        if (closest_points_4 == -1)
+                        {
+                            closest_points_4 = ivertex;
+                            count++;
+                        }
+                    }
+                    /* (i, j, k+1) */
+                    else if (  (coords[ivertex * nDim]     == coords[ip * nDim]) 
+                        && (coords[ivertex * nDim + 1] == coords[ip * nDim + 1]) 
+                        && (coords[ivertex * nDim + 2] >  coords[ip * nDim + 2]))
+                    {
+                        if (closest_points_5 == -1)
+                        {
+                            closest_points_5 = ivertex;
+                            count++;
+                        }
+                    }
                 }
             }
-        }     
+        }  
         if (count == 6)
         {
             /* NOTE: take care with denom_x and denom_y zero */
