@@ -110,7 +110,7 @@ ADD_EXECUTABLE(ftle_cuda_pin ${CUDA_SRC})
 SET_TARGET_PROPERTIES(ftle_cuda  PROPERTIES COMPILE_FLAGS ${CUDA_FLAGS})
 SET_TARGET_PROPERTIES(ftle_cuda_pin  PROPERTIES COMPILE_FLAGS "${CUDA_FLAGS} -DPINNED")
 
-SET_TARGET_PROPERTIES(ftle_guided ftle_dynamic ftle_static ftle_guided_alone ftle_dynamic_alone ftle_static_alone ftle_cuda ftle_cuda_pin  PROPERTIES LINK_FLAGS ${CUDA_LINK_FLAGS})
+SET_TARGET_PROPERTIES(ftle_guided ftle_dynamic ftle_static ftle_cuda ftle_cuda_pin  PROPERTIES LINK_FLAGS ${CUDA_LINK_FLAGS})
 IF(CUDA_ARCH)
 	SET_TARGET_PROPERTIES(ftle_cuda  PROPERTIES CUDA_ARCHITECTURES ${CUDA_ARCH})
 	SET_TARGET_PROPERTIES(ftle_cuda_pin  PROPERTIES CUDA_ARCHITECTURES ${CUDA_ARCH})
@@ -142,7 +142,7 @@ TARGET_LINK_LIBRARIES(ftle_hip m OpenMP::OpenMP_C amdhip64)
 TARGET_LINK_LIBRARIES(ftle_hip_pin m OpenMP::OpenMP_C amdhip64)
 
 
-INSTALL(TARGETS ftle_hip ftle_hip_pin ftle_cuda ftle_cuda_pin ftle_static ftle_dynamic ftle_guided  RUNTIME DESTINATION bin)
+INSTALL(TARGETS ftle_guided_alone ftle_dynamic_alone ftle_static_alone ftle_hip ftle_hip_pin ftle_cuda ftle_cuda_pin ftle_static ftle_dynamic ftle_guided  RUNTIME DESTINATION bin)
 
 
 
