@@ -16,7 +16,7 @@
 #define blockSize 512
 #define Num_Streams 1
 
-/* Only for NVIDIA GPU devices */
+
 void show_GPU_devices_info(int nDevices)
 {
     int i;
@@ -50,6 +50,7 @@ int main(int argc, char *argv[]) {
     printf("|  - Rocío Carratalá-Sáez | rocio@infor.uva.es         |\n");
     printf("|  - Yuri Torres          | yuri.torres@infor.uva.es   |\n");
     printf("|  - Sergio López-Huguet  | serlohu@upv.es             |\n");
+    printf("|  - Francisco J. Andújar | fandujarm@infor.uva.es     |\n");
     printf("--------------------------------------------------------\n");
     fflush(stdout);
 
@@ -74,8 +75,8 @@ int main(int argc, char *argv[]) {
     FILE *file;
 
     double  t_eval =  atof(argv[5]), maxTime;
-    double  kernel_times[10];
-    double  preproc_times[10];
+    float  kernel_times[10];
+    float  preproc_times[10];
     int     numThreads=0;
     double *coords;
     double *flowmap;
@@ -96,7 +97,7 @@ int main(int argc, char *argv[]) {
 
     /* Initialize mesh original information */
     nDim = atoi(argv[1]);
-    
+
     if ( nDim == 2 ) nVertsPerFace = 3; // 2D: faces are triangles
     else 
     {
@@ -162,22 +163,19 @@ int main(int argc, char *argv[]) {
 #else
     logSqrt        = (double*) malloc( sizeof(double) * nPoints);    
 #endif
-
-
-
-    /* Assign faces to vertices and generate nFacesPerPoint and facesPerPoint GPU vectors */
+    // Assign faces to vertices and generate nFacesPerPoint and facesPerPoint GPU vectors  
     create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
     facesPerPoint = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
 
-#ifdef PINNED
-    printf("\nComputing FTLE (pinned)...                                 ");
-#else
+#ifndef PINNED    
     printf("\nComputing FTLE (non pinned)...                                 ");
+#else
+    printf("\nComputing FTLE (pinned)...                                 ");
 #endif
     fflush(stdout);
-	struct timeval gtimeS;
+	struct timeval global_timer_start;
 	
-	gettimeofday(&gtimeS, NULL);
+	gettimeofday(&global_timer_start, NULL);
     #pragma omp parallel default(none)  shared(stdout, logSqrt, nDim, nPoints, nFaces, nVertsPerFace, numThreads, preproc_times, kernel_times, faces, coords, nFacesPerPoint, facesPerPoint, flowmap, t_eval)   //shared(sched_chunk_size, t_eval, npoints, nteval, result, mesh, d_cuda_coords_vector, d_cuda_coords_vector2, d_cuda_velocity_vector, d_cuda_velocity_vector2, d_cuda_faces_vector, d_cuda_faces_vector2, d_cuda_times_vector, d_cuda_times_vector2, nsteps_rk4, numBlocks) private(ip, it, itprev) firstprivate(multigpu)
     {
         numThreads = omp_get_num_threads();
@@ -191,7 +189,6 @@ int main(int argc, char *argv[]) {
         cudaSetDevice(omp_get_thread_num());
 
         /* Allocate memory for read data at the GPU (coords, faces, flowmap) */
-        //printf("Allocating memory at the GPU and copying data to it... ");
         cudaMalloc( &d_coords,  sizeof(double) * nPoints * nDim );
         cudaMalloc( &d_faces,   sizeof(int)    * nFaces  * nVertsPerFace );
         cudaMalloc( &d_flowmap, sizeof(double) * nPoints * nDim );
@@ -229,28 +226,25 @@ int main(int argc, char *argv[]) {
         int numBlocks = (int) (ceil((double)nPoints/(double)block.x)+1);
         numBlocks = (numBlocks/omp_get_num_threads()) + 1; 
         dim3 grid_numCoords(numBlocks);
-
-        struct timeval start;
-        struct timeval preproc;
-        struct timeval end;                 
-        double time;
         int size =   omp_get_num_threads()==1 ?   0: nPoints / omp_get_num_threads();
         int localStride = size * omp_get_thread_num();
 
-        cudaStream_t streams[Num_Streams];
-        for (int i = 0; i < Num_Streams; ++i) {cudaStreamCreate(&streams[i]); }
-
-        /* Solve FTLE */
+        //Create Hip events
+        cudaEvent_t start, stop;
+        cudaEventCreate(&start);
+        cudaEventCreate(&stop);
         cudaDeviceSynchronize();
-        gettimeofday(&start, NULL);
-
+          	
+        //Launch preproccesing kernel
+        cudaEventRecord(start, cudaStreamDefault);
         /* STEP 1: compute gradient, tensors and ATxA based on neighbors flowmap values */
         create_facesPerPoint_vector_GPU<<<grid_numCoords, block>>> (localStride, nDim, nPoints, nFaces, nVertsPerFace, 
             d_faces, d_nFacesPerPoint, d_facesPerPoint);
-        cudaDeviceSynchronize();
-        /* Time */
-		gettimeofday(&preproc, NULL);
-
+	cudaEventRecord(stop, cudaStreamDefault);
+        cudaEventSynchronize(stop);
+        cudaEventElapsedTime(preproc_times+ omp_get_thread_num() , start, stop);
+        
+        cudaEventRecord(start, cudaStreamDefault);
 #ifndef PINNED
         if ( nDim == 2 )
             gpu_compute_gradient_2D <<<grid_numCoords, block>>> (localStride,
@@ -264,12 +258,12 @@ int main(int argc, char *argv[]) {
                 d_logSqrt, t_eval);
 #else
         if ( nDim == 2 )
-            gpu_compute_gradient_2D <<<grid_numCoords, block,0, streams[0]>>> (localStride,
+            gpu_compute_gradient_2D <<<grid_numCoords, block,0, cudaStreamDefault>>> (localStride,
                 nPoints, nVertsPerFace, 
                 d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, 
                  d_logSqrt, t_eval);
         else
-            gpu_compute_gradient_3D <<<grid_numCoords, block,0,streams[0]>>> (localStride,
+            gpu_compute_gradient_3D <<<grid_numCoords, block,0,cudaStreamDefault>>> (localStride,
                 nPoints, nVertsPerFace, 
                 d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, 
                  d_logSqrt, t_eval);
@@ -277,16 +271,14 @@ int main(int argc, char *argv[]) {
 #endif
 		cudaDeviceSynchronize();
 		
-        /* Show time */         /* Time */
-		gettimeofday(&end, NULL);
-		time = (preproc.tv_sec - start.tv_sec) + (preproc.tv_usec - start.tv_usec)/1000000.0;
-		preproc_times[omp_get_thread_num()] = time*1000;
-		time = (end.tv_sec - preproc.tv_sec) + (end.tv_usec - preproc.tv_usec)/1000000.0;
-		kernel_times[omp_get_thread_num()] = time*1000;
+        cudaEventRecord(stop, cudaStreamDefault);
+        cudaEventSynchronize(stop);
+        cudaEventElapsedTime(kernel_times + omp_get_thread_num(), start, stop);
+	
 #ifndef PINNED
 		cudaMemcpy (&logSqrt[localStride],  &d_logSqrt[localStride], sizeof(double) * (nPoints / omp_get_num_threads()), cudaMemcpyDeviceToHost);
 #else
-		cudaMemcpyAsync (&logSqrt[localStride],  &d_logSqrt[localStride], sizeof(double) * (nPoints / omp_get_num_threads()), cudaMemcpyDeviceToHost,streams[0]);
+		cudaMemcpyAsync (&logSqrt[localStride],  &d_logSqrt[localStride], sizeof(double) * (nPoints / omp_get_num_threads()), cudaMemcpyDeviceToHost,cudaStreamDefault);
 #endif
 	  cudaDeviceSynchronize();
 
@@ -311,12 +303,10 @@ int main(int argc, char *argv[]) {
         cudaFree(d_cg_tensor2);
         cudaFree(d_cg_tensor3);
         cudaFree(devInfo);
-
-        //cudaDeviceReset();
     }
-    struct timeval gtimeF;
-    gettimeofday(&gtimeF, NULL);
-    double time = (gtimeF.tv_sec - gtimeS.tv_sec) + (gtimeF.tv_usec - gtimeS.tv_usec)/1000000.0;
+    struct timeval global_timer_end;
+    gettimeofday(&global_timer_end, NULL);
+    double time = (global_timer_end.tv_sec - global_timer_start.tv_sec) + (global_timer_end.tv_usec - global_timer_start.tv_usec)/1000000.0;
     printf("DONE\n\n");
     printf("--------------------------------------------------------\n");
     fflush(stdout);
@@ -349,13 +339,11 @@ int main(int argc, char *argv[]) {
     free(coords);
     free(faces);
     free(flowmap);
-
 #ifndef PINNED            
     free(logSqrt);
 #else
     cudaFree(logSqrt);
 #endif
-
     free(nFacesPerPoint);
     free(facesPerPoint);
 
