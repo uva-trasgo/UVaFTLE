@@ -94,9 +94,9 @@ IF(CUDA_ARCH)
 ENDIF()
 
 
-TARGET_LINK_LIBRARIES(ftle_static  m OpenMP::OpenMP_C)
-TARGET_LINK_LIBRARIES(ftle_dynamic m OpenMP::OpenMP_C)
-TARGET_LINK_LIBRARIES(ftle_guided  m OpenMP::OpenMP_C)
+TARGET_LINK_LIBRARIES(ftle_static_alone  m OpenMP::OpenMP_C)
+TARGET_LINK_LIBRARIES(ftle_dynamic_alone m OpenMP::OpenMP_C)
+TARGET_LINK_LIBRARIES(ftle_guided_alone  m OpenMP::OpenMP_C)
 
 
 #CUDA VERSIONS
