@@ -2,7 +2,7 @@
 
 double max_solve_3rd_degree_eq(double a, double b, double c, double d)
 {
-    double x1, x2, x3;
+    double x1 = 0.0, x2 = 0.0, x3 = 0.0;
     double A   = b*b - 3*a*c;
     double B   = b*c - 9*a*d;
     double C   = c*c - 3*b*d;
@@ -22,18 +22,19 @@ double max_solve_3rd_degree_eq(double a, double b, double c, double d)
         double _xt = acos(T);
         double xt  = _xt/3;
         x1         = (-b-2*sqrt(A)*cos(xt)) / (3*a);
-        x2         = (-b+sqrt(A)*(cos(xt)+sqrt(3)*sin(xt)))/(3*a);
-        x3         = (-b+sqrt(A)*(cos(xt)-sqrt(3)*sin(xt)))/(3*a);
+        x2         = (-b+sqrt(A)*(cos(xt)+sqrt(3.0)*sin(xt)))/(3*a);
+        x3         = (-b+sqrt(A)*(cos(xt)-sqrt(3.0)*sin(xt)))/(3*a);
     }
     double max = (x1 > x2) ? x1 : x2;
     return (max > x3) ? max : x3;
 }
 
-kernel void fpga_compute_gradient_2D(int nPoints, int nVertsPerFace, double * restrict coords, double * restrict flowmap, int * restrict faces, int * restrict nFacesPerPoint, int * restrict facesPerPoint, double * restrict log_sqrt, double T)
+__attribute__((max_global_work_dim(0)))
+kernel void fpga_compute_gradient_2D(int nPoints, int nVertsPerFace, global double * restrict coords, global double * restrict flowmap, global int * restrict faces, global int * restrict nFacesPerPoint, global int * restrict facesPerPoint, global double * restrict log_sqrt, double T)
 {
     int nDim = 2; 
 
-    #pragma unroll 16
+    //#pragma unroll
     for (int ip = 0; ip < nPoints; ip++)
     {
         int iface, nFaces, idxface, ivert;
@@ -173,11 +174,12 @@ kernel void fpga_compute_gradient_2D(int nPoints, int nVertsPerFace, double * re
     }
 }
 
-kernel void fpga_compute_gradient_3D(int nPoints, int nVertsPerFace, double * restrict coords, double * restrict flowmap, int * restrict faces, int * restrict nFacesPerPoint, int * restrict facesPerPoint, double * restrict log_sqrt, double T)
+__attribute__((max_global_work_dim(0)))
+kernel void fpga_compute_gradient_3D(int nPoints, int nVertsPerFace, global double * restrict coords, global double * restrict flowmap, global int * restrict faces, global int * restrict nFacesPerPoint, global int * restrict facesPerPoint, global double * restrict log_sqrt, double T)
 {
     int nDim = 3; 
 
-    #pragma unroll 16
+    //#pragma unroll
     for (int ip = 0; ip < nPoints; ip++)
     {
         int iface, nFaces, idxface, ivert;
@@ -349,30 +351,32 @@ kernel void fpga_compute_gradient_3D(int nPoints, int nVertsPerFace, double * re
     }
 }
 
-kernel void create_facesPerPoint_vector_FPGA(int nDim, int nPoints, int nFaces, int nVertsPerFace, int * restrict faces, int * restrict nFacesPerPoint, int * restrict facesPerPoint)
+/*
+__attribute__((max_global_work_dim(0)))
+kernel void create_facesPerPoint_vector_FPGA(int nDim, int nPoints, int nFaces, int nVertsPerFace, global int * restrict faces, global int * restrict nFacesPerPoint, global int * restrict facesPerPoint)
+// TODO: Revise buffer R/W permissions in host file when this kernel is ready to be used
 {
-           int ip, count, iface, ipf, nFacesP, iFacesP;
+    int ip, count, iface, ipf, nFacesP, iFacesP;
 
-           #pragma unroll 16
-           for (ip = 0; ip < nPoints; ip++)
-           {
-                    ip = th_id;                              
-                    count   = 0;
-                    iFacesP = (ip == 0) ? 0 : nFacesPerPoint[ip - 1];
-                    nFacesP = nFacesPerPoint[ip] - iFacesP;
-                    // TODO: unroll inner loops
-                    for (iface = 0; (iface < nFaces) && (count < nFacesP); iface++)
-                    {     
-                          for (ipf = 0; ipf < nVertsPerFace; ipf++)
-                          {       
-                                  if (faces[iface * nVertsPerFace + ipf] == ip)
-                                  {
-                                            // TODO: mark no data dependencies between iterations
-                                            facesPerPoint[iFacesP + count] = iface;
-                                            count++;
-                                  }
-                          }
-                    }
-          }
+    //#pragma unroll
+    for (ip = 0; ip < nPoints; ip++)
+    {
+             count   = 0;
+             iFacesP = (ip == 0) ? 0 : nFacesPerPoint[ip - 1];
+             nFacesP = nFacesPerPoint[ip] - iFacesP;
+             // TODO: unroll inner loops
+             for (iface = 0; (iface < nFaces) && (count < nFacesP); iface++)
+             {     
+                   for (ipf = 0; ipf < nVertsPerFace; ipf++)
+                   {       
+                           if (faces[iface * nVertsPerFace + ipf] == ip)
+                           {
+                                     // TODO: mark no data dependencies between iterations
+                                     facesPerPoint[iFacesP + count] = iface;
+                                     count++;
+                           }
+                   }
+            }
+   }
 }
-
+*/

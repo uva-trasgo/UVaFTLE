@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include "ftle.h"
 
 void read_coordinates(char *filename, int nDim, int npoints, double *coords);

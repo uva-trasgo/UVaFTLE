@@ -1,0 +1,7 @@
+# Compiled binaries
+bin/
+# Compilation scripts and reports
+*.sh*
+# FTLE kernel compilation files
+src/ftle_kernels*
+!src/ftle_kernels.cl

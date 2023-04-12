@@ -26,8 +26,8 @@
 #define MALLOC_CHECK( ptr )
 #endif // OPENCL_DEBUG
 
-cl_context cl_context_and_device_for_platfor(const char *platform, cl_device_id *device_id);
-cl_kernel *cl_kernels_from_names(const char *file_path, cl_context context, cl_device device_id, const int n_kernels, const char **entrypoints);
+cl_context cl_context_and_device_for_platform(const char *platform, cl_device_id *device_id);
+cl_kernel *cl_kernels_from_names(const char *file_path, cl_context context, cl_device_id device_id, const int n_kernels, const char **entrypoints);
 
 #endif // OPENCL_KERNEL_H
 
