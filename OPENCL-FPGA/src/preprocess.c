@@ -128,8 +128,8 @@ void create_facesPerPoint_vector(int nDim, int nPoints, int nFaces, int nVertsPe
         for (ip = 0; ip < nPoints; ip++)
         {       
                 count   = 0;
-		iFacesP = (ip == 0) ? 0 : nFacesPerPoint[ip-1];
-		nFacesP = (ip == 0) ? nFacesPerPoint[ip] : nFacesPerPoint[ip] - nFacesPerPoint[ip-1];
+                iFacesP = (ip == 0) ? 0 : nFacesPerPoint[ip-1];
+                nFacesP = (ip == 0) ? nFacesPerPoint[ip] : nFacesPerPoint[ip] - nFacesPerPoint[ip-1];
                 for (iface = 0; (iface < nFaces) && (count < nFacesP); iface++)
                 {     
                       for (ipf = 0; ipf < nVertsPerFace; ipf++)

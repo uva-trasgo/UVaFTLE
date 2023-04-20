@@ -51,7 +51,7 @@ kernel void fpga_compute_gradient_2D(int nPoints, int nVertsPerFace, global doub
 
         nFaces  = (ip == 0) ? nFacesPerPoint[ip] : nFacesPerPoint[ip] - nFacesPerPoint[ip-1];
         /* Find 4 closest points */
-        
+
         for (iface = 0; (iface < nFaces) && (count < 4); iface++)
         {
             idxface = (ip == 0) ? facesPerPoint[iface] : facesPerPoint[nFacesPerPoint[ip-1] + iface];
@@ -98,7 +98,7 @@ kernel void fpga_compute_gradient_2D(int nPoints, int nVertsPerFace, global doub
                     }
                 }
             }
-        }     
+        } 
         if (count == 4)
         {
             /* NOTE: take care with denom_x and denom_y zero */

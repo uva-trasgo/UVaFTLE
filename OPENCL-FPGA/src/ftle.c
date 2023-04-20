@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include <sys/time.h>
 #include <time.h>
@@ -25,14 +26,14 @@ int main(int argc, char *argv[]) {
     // Check usage
     if (argc != 7)
     {
-        printf("USAGE: ./executable <nDim> <coords_file> <faces_file> <flowmap_file> <t_eval>\n");
+        printf("USAGE: %s <nDim> <coords_file> <faces_file> <flowmap_file> <t_eval> <print2file>\n", argv[0]);
         printf("\texecutable:    compute_ftle.\n");
         printf("\tnDim:          dimensions of the space (2D/3D).\n");
         printf("\tcoords_file:   file where mesh coordinates are stored.\n");
         printf("\tfaces_file:    file where mesh faces are stored.\n");
         printf("\tflowmap_file:  file where flowmap values are stored.\n");
         printf("\tt_eval:        time when compute ftle is desired.\n");
-        printf("\tprint2file:    store result in output file.\n");
+        printf("\tprint2file:    print to file? (0-NO, 1-YES).\n");
 	    exit(EXIT_FAILURE);
     }
 
@@ -113,18 +114,27 @@ int main(int argc, char *argv[]) {
     logSqrt        = (double *) malloc(sizeof(double) * nPoints);       
     nFacesPerPoint = (int *) malloc(sizeof(int) * nPoints); /* REMARK: nFacesPerPoint accumulates previous nFacesPerPoint */
 
-    /* PREPROCESS */
-    /* Assign faces to vertices and generate nFacesPerPoint and facesPerPoint vectors */
-    create_nFacesPerPoint_vector(nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint);
-    facesPerPoint = (int *)malloc(sizeof(int) * nFacesPerPoint[nPoints - 1]);
-    gettimeofday(&preproc_clock, NULL);
-    printf("\nComputing Preproc...                     ");
-    create_facesPerPoint_vector(nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint, facesPerPoint);
-
-
     /* Create OpenCL context and queue for FPGA and retrieve kernels */
     cl_int err;
     cl_device_id fpga_id;
+
+    char kernel_directory[FILENAME_MAX];
+    strncpy(kernel_directory, argv[0], FILENAME_MAX);
+    char *kernel_directory_tail = kernel_directory + strlen(kernel_directory) - 1;
+    while (&kernel_directory_tail[1] != kernel_directory && kernel_directory_tail[0] != '/')
+        kernel_directory_tail--;
+    kernel_directory_tail[1] = '\0';
+
+    char *kernel_file_name = strcat(kernel_directory,
+#ifndef EMULATION
+        "ftle_kernels.aocx"
+#else // EMULATION
+        "ftle_kernels_emu.aocx"
+#endif // EMULATION
+    );
+    printf("Loading kernel file: %s...\n", kernel_file_name);
+    fflush(stdout);
+
     cl_context ctx = cl_context_and_device_for_platform(
 #ifdef EMULATION
         "Intel(R) FPGA Emulation Platform for OpenCL(TM)",
@@ -137,22 +147,21 @@ int main(int argc, char *argv[]) {
         OPENCL_CHECK_ERROR( err );
 
     //const char *kernel_names[3] = { "fpga_compute_gradient_2D", "fpga_compute_gradient_3D", "create_facesPerPoint_vector_FPGA" };
-    const char *kernel_names[3] = { "fpga_compute_gradient_2D", "fpga_compute_gradient_3D" };
-    cl_kernel *fpga_kernels = cl_kernels_from_names(
-#ifndef EMULATION
-        "ftle_kernels.aocx",
-#else // EMULATION
-        "ftle_kernels_emu.aocx",
-#endif // EMULATION
-        ctx, fpga_id, 3, kernel_names);
+    //cl_kernel *fpga_kernels = cl_kernels_from_names(kernel_file_name, ctx, fpga_id, 3, kernel_names);
+    const char *kernel_names[2] = { "fpga_compute_gradient_2D", "fpga_compute_gradient_3D" };
+    cl_kernel *fpga_kernels = cl_kernels_from_names(kernel_file_name, ctx, fpga_id, 2, kernel_names);
     cl_kernel fpga_compute_gradient_2D = fpga_kernels[0];
     cl_kernel fpga_compute_gradient_3D = fpga_kernels[1];
-    //cl_kernel create_facesPerPoint_vector_FPGA = fpga_kernels[0];
+    //cl_kernel create_facesPerPoint_vector_FPGA = fpga_kernels[2];
     free(fpga_kernels);
 
-    /* Assign faces to vertices and generate nFacesPerPoint and facesPerPoint FPGA vectors */
+    /* PREPROCESS */
+    /* Assign faces to vertices and generate nFacesPerPoint and facesPerPoint vectors */
     create_nFacesPerPoint_vector(nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint);
-    facesPerPoint = (int *) malloc(sizeof(int) * nFacesPerPoint[ nPoints - 1 ]);
+    facesPerPoint = (int *)malloc(sizeof(int) * nFacesPerPoint[nPoints - 1]);
+    gettimeofday(&preproc_clock, NULL);
+    printf("\nComputing Preproc...                     ");
+    create_facesPerPoint_vector(nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint, facesPerPoint);
 
     cl_event kernel_event;
     /*
@@ -196,11 +205,6 @@ int main(int argc, char *argv[]) {
     OPENCL_CHECK_ERROR( err );
     d_logSqrt = clCreateBuffer(ctx, CL_MEM_WRITE_ONLY, sizeof(double) * nPoints, NULL, &err);
     OPENCL_CHECK_ERROR( err );
-    if (nDim == 3)
-    {
-        d_flowmap = clCreateBuffer(ctx, CL_MEM_READ_ONLY, sizeof(double) * nPoints * nDim, NULL, &err);
-        OPENCL_CHECK_ERROR( err );
-    }
     d_facesPerPoint = clCreateBuffer(ctx, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(int) * nFacesPerPoint[nPoints - 1], facesPerPoint, &err);
     OPENCL_CHECK_ERROR( err );
 
