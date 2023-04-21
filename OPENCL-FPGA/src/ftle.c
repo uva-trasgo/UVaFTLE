@@ -38,6 +38,8 @@ int main(int argc, char *argv[]) {
     }
 
     struct timeval preproc_clock, ftle_clock, end_clock;
+    // Additional timers for FPGA performance analysis:
+    struct timeval cpu2fpga_transfer_begin, kernel_begin, fpga2cpu_transfer_begin, fpga_end;
     double time_ftle, time_total;
     int check_EOF;
     char buffer[255];
@@ -153,6 +155,7 @@ int main(int argc, char *argv[]) {
     cl_kernel fpga_compute_gradient_2D = fpga_kernels[0];
     cl_kernel fpga_compute_gradient_3D = fpga_kernels[1];
     //cl_kernel create_facesPerPoint_vector_FPGA = fpga_kernels[2];
+    cl_kernel fpga_compute_gradient; // Will store the kernel to execute
     free(fpga_kernels);
 
     /* PREPROCESS */
@@ -192,6 +195,7 @@ int main(int argc, char *argv[]) {
     cl_mem d_coords, d_flowmap;
     cl_mem d_faces, d_nFacesPerPoint, d_facesPerPoint;
 
+    gettimeofday(&cpu2fpga_transfer_begin, NULL);
     /* Allocate and copy memory for read data at the FPGA (coords, faces, flowmap) */
     d_coords = clCreateBuffer(ctx, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(double) * nPoints * nDim, coords, &err);
     OPENCL_CHECK_ERROR( err );
@@ -211,38 +215,41 @@ int main(int argc, char *argv[]) {
     /* Solve FTLE */
     OPENCL_CHECK( clFinish(queue) );
     gettimeofday(&ftle_clock, NULL);
+    gettimeofday(&kernel_begin, NULL);
 
     /* STEP 1: compute gradient, tensors and ATxA based on neighbors flowmap values */
 
     if (nDim == 2)
     {
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_2D, 0, sizeof(cl_int), &nPoints) );
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_2D, 1, sizeof(cl_int), &nVertsPerFace) );
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_2D, 2, sizeof(cl_mem), &d_coords) );
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_2D, 3, sizeof(cl_mem), &d_flowmap) );
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_2D, 4, sizeof(cl_mem), &d_faces) );
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_2D, 5, sizeof(cl_mem), &d_nFacesPerPoint) );
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_2D, 6, sizeof(cl_mem), &d_facesPerPoint) );
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_2D, 7, sizeof(cl_mem), &d_logSqrt) );
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_2D, 8, sizeof(cl_double), &t_eval) );
-        OPENCL_CHECK( clEnqueueTask(queue, fpga_compute_gradient_2D, 0, NULL, &kernel_event) );
+        fpga_compute_gradient = fpga_compute_gradient_2D;
     }
     else
     {
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_3D, 0, sizeof(cl_int), &nPoints) );
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_3D, 1, sizeof(cl_int), &nVertsPerFace) );
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_3D, 2, sizeof(cl_mem), &d_coords) );
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_3D, 3, sizeof(cl_mem), &d_flowmap) );
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_3D, 4, sizeof(cl_mem), &d_faces) );
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_3D, 5, sizeof(cl_mem), &d_nFacesPerPoint) );
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_3D, 6, sizeof(cl_mem), &d_facesPerPoint) );
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_3D, 7, sizeof(cl_mem), &d_logSqrt) );
-        OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient_3D, 8, sizeof(cl_double), &t_eval) );
-        OPENCL_CHECK( clEnqueueTask(queue, fpga_compute_gradient_3D, 0, NULL, &kernel_event) );
+        fpga_compute_gradient = fpga_compute_gradient_3D;
     }
+    OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient, 0, sizeof(cl_int), &nPoints) );
+    OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient, 1, sizeof(cl_int), &nVertsPerFace) );
+    OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient, 2, sizeof(cl_mem), &d_coords) );
+    OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient, 3, sizeof(cl_mem), &d_flowmap) );
+    OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient, 4, sizeof(cl_mem), &d_faces) );
+    OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient, 5, sizeof(cl_mem), &d_nFacesPerPoint) );
+    OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient, 6, sizeof(cl_mem), &d_facesPerPoint) );
+    OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient, 7, sizeof(cl_mem), &d_logSqrt) );
+    OPENCL_CHECK( clSetKernelArg(fpga_compute_gradient, 8, sizeof(cl_double), &t_eval) );
+    OPENCL_CHECK( clEnqueueTask(queue, fpga_compute_gradient, 0, NULL, &kernel_event) );
+
+    gettimeofday(&fpga2cpu_transfer_begin, NULL);
     OPENCL_CHECK( clEnqueueReadBuffer(queue, d_logSqrt, CL_TRUE, 0, sizeof(double) * nPoints, logSqrt, 1, &kernel_event, NULL) );
 
     OPENCL_CHECK( clFinish(queue) );
+    gettimeofday(&fpga_end, NULL);
+
+    float time_cpu2fpga = (kernel_begin.tv_sec - cpu2fpga_transfer_begin.tv_sec) + (kernel_begin.tv_usec - cpu2fpga_transfer_begin.tv_usec)/1000000.0;
+    float time_kernel = (fpga2cpu_transfer_begin.tv_sec - kernel_begin.tv_sec) + (fpga2cpu_transfer_begin.tv_usec - kernel_begin.tv_usec)/1000000.0;
+    float time_fpga2cpu = (fpga_end.tv_sec - fpga2cpu_transfer_begin.tv_sec) + (fpga_end.tv_usec - fpga2cpu_transfer_begin.tv_usec)/1000000.0;
+
+    printf("\nCPU->FPGA transfer time: %f, kernel time: %f, FPGA->CPU time: %f\n", time_cpu2fpga, time_kernel, time_fpga2cpu);
+
     /* Times */
     gettimeofday(&end_clock, NULL);
     time_total = (end_clock.tv_sec - preproc_clock.tv_sec) + (end_clock.tv_usec - ftle_clock.tv_usec)/1000000.0;
