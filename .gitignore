@@ -1,13 +1,12 @@
 /CPU/bin
 /CUDA/bin
+/HIP/bin
 /bin
 *~
 CMakeCache.txt
 CMakeFiles/*
 Makefile
 cmake_install.cmake
-ftle_cuda
-ftle_dynamic
-ftle_guided
-ftle_static
-
+ftle_*
+*csv
+*sh

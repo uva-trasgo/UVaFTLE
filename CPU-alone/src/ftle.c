@@ -6,8 +6,6 @@
 #include <assert.h>
 #include "omp.h"
 
-#include <cuda.h>
-
 #include "ftle.h"
 #include "arithmetic.h"
 #include "preprocess.h"
@@ -125,15 +123,19 @@ int main(int argc, char *argv[]) {
     create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
     facesPerPoint = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
     gettimeofday(&preproc_clock, NULL);
-    cudaMalloc( &d2_facesPerPoint, sizeof(int)    *   nFacesPerPoint[ nPoints - 1 ]); 
-    cudaMalloc( &d2_faces,   sizeof(int)    * nFaces  * nVertsPerFace ); 
-    cudaMalloc( &d2_nFacesPerPoint, sizeof(int)    * nPoints); 
-    cudaMemcpy( d2_faces,   faces,   sizeof(int)    * nFaces  * nVertsPerFace, cudaMemcpyHostToDevice ); 
-    cudaMemcpy( d2_nFacesPerPoint, nFacesPerPoint, sizeof(int) * nPoints,                       cudaMemcpyHostToDevice );  
-    create_facesPerPoint_vector_GPU<<<(ceil(    (double)nPoints/(double)blockSize)  +1),blockSize>>> ( nDim, nPoints, nFaces, nVertsPerFace, 
-        d2_faces, d2_nFacesPerPoint, d2_facesPerPoint );
-    cudaMemcpy( facesPerPoint,   d2_facesPerPoint,   sizeof(int)    * nFacesPerPoint[ nPoints - 1 ], cudaMemcpyDeviceToHost ); 
-    
+#ifdef DYNAMIC
+    printf("\nComputing Preproc(dynamic scheduler)...                     ");
+    #pragma omp parallel for default(none) shared(nDim, nFaces, nPoints, nVertsPerFace, faces, nFacesPerPoint,  facesPerPoint) num_threads(nth) schedule(dynamic)
+#elif defined GUIDED
+    printf("\nComputing Preproc (guided scheduler)...                     ");
+    #pragma omp parallel for default(none) shared(nDim, nFaces, nPoints, nVertsPerFace, faces, nFacesPerPoint,  facesPerPoint) num_threads(nth) schedule(guided)
+#else
+    printf("\nComputing Preproc (static scheduler)...                     ");
+    #pragma omp parallel for default(none) shared(nDim, nFaces, nPoints, nVertsPerFace, faces, nFacesPerPoint,  facesPerPoint) num_threads(nth) schedule(static)
+#endif
+	for ( int ip = 0; ip < nPoints; ip++ )
+             create_facesPerPoint_vector( nDim, ip, nFaces, nVertsPerFace, faces, nFacesPerPoint, facesPerPoint );    
+
     /* Solve FTLE */
     nth = atoi(argv[6]);
     fflush(stdout);

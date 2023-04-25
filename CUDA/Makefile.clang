@@ -1,0 +1,28 @@
+# Compilers
+CC=clang++
+
+CUDA_DIR=/opt/cuda-11.3
+# Flags 
+FLAGS=-fopenmp -O3 -lm -I${CUDA_DIR}/include -I ./include  -lm --cuda-gpu-arch=sm_70 -L${CUDA_DIR}/lib64/ -lcudart_static -ldl -lrt -p
+thread -lstdc++ -L${CUDA_DIR}/bin
+
+# Directories
+DIR=.
+DIR_src=${DIR}/src
+DIR_bin=${DIR}/bin
+
+# Complementary files
+SRC=${DIR_src}/preprocess.cu ${DIR_src}/arithmetic.cu ${DIR_src}/ftle.cu
+
+# Make lists
+all: compute_ftle
+
+# -------------------------- #
+# ---------- GCC ----------- #
+# -------------------------- #
+
+compute_ftle:
+	${CC} ${SRC} -o ${DIR_bin}/ftle_cuda_pinned -DPINNED ${FLAGS} 
+	${CC}  ${SRC} -o ${DIR_bin}/ftle_cuda ${FLAGS} ${FLAGS}
+clean:
+	cd ${DIR_bin} && rm ${OBJS} && cd ..

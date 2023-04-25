@@ -5,8 +5,7 @@
 #include <time.h>
 
 #include <omp.h>
-#include <cuda.h>
-#include <cuda_runtime.h>
+#include <hip/hip_runtime.h>
 #include <assert.h>
 
 #include "ftle.h"
@@ -20,9 +19,9 @@
 void show_GPU_devices_info(int nDevices)
 {
     int i;
-    cudaDeviceProp prop;
+    hipDeviceProp_t prop;
     for (i = 0; i < nDevices; i++) {
-        cudaGetDeviceProperties(&prop, i);
+        hipGetDeviceProperties(&prop, i);
         printf("GPU #%d\n", i);
         printf("  Device name: %s\n", prop.name);
         printf("  Memory Clock Rate (MHz): %d\n",
@@ -36,8 +35,7 @@ void show_GPU_devices_info(int nDevices)
         printf("  minor-major: %d-%d\n", prop.minor, prop.major);
         printf("  Warp-size: %d\n", prop.warpSize);
         printf("  Concurrent kernels: %s\n", prop.concurrentKernels ? "yes" : "no");
-        printf("  Concurrent computation/communication: %s\n\n",prop.deviceOverlap ? "yes" : "no");
-    }
+    } 
     fflush(stdout);
 }
 
@@ -64,7 +62,7 @@ int main(int argc, char *argv[]) {
         printf("\tfaces_file:    file where mesh faces are stored.\n");
         printf("\tflowmap_file:  file where flowmap values are stored.\n");
         printf("\tt_eval:        time when compute ftle is desired.\n");
-        printf("\tprint2file:    store result in output file.\n");
+        printf("\tprint2file:    store result in output file.\n");    
         return 1;
     }
 
@@ -90,7 +88,7 @@ int main(int argc, char *argv[]) {
     /* Obtain and show GPU devices information */
     printf("\nGPU devices to be used:         \n\n");    
     fflush(stdout);
-    cudaGetDeviceCount(&nDevices);
+    hipGetDeviceCount(&nDevices);
     show_GPU_devices_info(nDevices);
     printf("--------------------------------------------------------\n");
     fflush(stdout);
@@ -157,11 +155,11 @@ int main(int argc, char *argv[]) {
     fflush(stdout);
 
     /* Allocate additional memory at the CPU */    
-    nFacesPerPoint = (int *) malloc( sizeof(int) * nPoints ); /* REMARK: nFacesPerPoint accumulates previous nFacesPerPoint */
-#ifdef PINNED
-    cudaHostAlloc( (void **) &logSqrt, sizeof(double) * nPoints,cudaHostAllocMapped);
+    nFacesPerPoint = (int *) malloc( sizeof(int) * nPoints ); // REMARK: nFacesPerPoint accumulates previous nFacesPerPoint  
+#ifndef PINNED            
+    logSqrt        = (double*) malloc( sizeof(double) * nPoints);       
 #else
-    logSqrt        = (double*) malloc( sizeof(double) * nPoints);    
+    hipHostMalloc( (void **) &logSqrt, sizeof(double) * nPoints);
 #endif
     // Assign faces to vertices and generate nFacesPerPoint and facesPerPoint GPU vectors  
     create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
@@ -179,41 +177,40 @@ int main(int argc, char *argv[]) {
     #pragma omp parallel default(none)  shared(stdout, logSqrt, nDim, nPoints, nFaces, nVertsPerFace, numThreads, preproc_times, kernel_times, faces, coords, nFacesPerPoint, facesPerPoint, flowmap, t_eval)   //shared(sched_chunk_size, t_eval, npoints, nteval, result, mesh, d_cuda_coords_vector, d_cuda_coords_vector2, d_cuda_velocity_vector, d_cuda_velocity_vector2, d_cuda_faces_vector, d_cuda_faces_vector2, d_cuda_times_vector, d_cuda_times_vector2, nsteps_rk4, numBlocks) private(ip, it, itprev) firstprivate(multigpu)
     {
         numThreads = omp_get_num_threads();
-        cudaError_t error;
         double *d_logSqrt;
         double *d_gra1, *d_gra2, *d_gra3;
         double *d_cg_tensor1, *d_cg_tensor2, *d_cg_tensor3;
         double *d_coords, *d_flowmap, *d_res;
         int    *devInfo, *d_faces, *d_nFacesPerPoint, *d_facesPerPoint;
 
-        cudaSetDevice(omp_get_thread_num());
+        hipSetDevice(omp_get_thread_num());
 
         /* Allocate memory for read data at the GPU (coords, faces, flowmap) */
-        cudaMalloc( &d_coords,  sizeof(double) * nPoints * nDim );
-        cudaMalloc( &d_faces,   sizeof(int)    * nFaces  * nVertsPerFace );
-        cudaMalloc( &d_flowmap, sizeof(double) * nPoints * nDim );
+        hipMalloc( &d_coords,  sizeof(double) * nPoints * nDim );
+        hipMalloc( &d_faces,   sizeof(int)    * nFaces  * nVertsPerFace );
+        hipMalloc( &d_flowmap, sizeof(double) * nPoints * nDim );
 
         /* Copy read data to GPU (coords, faces, flowmap) */
-        cudaMemcpy( d_coords,  coords,  sizeof(double) * nPoints * nDim,          cudaMemcpyHostToDevice );
-        cudaMemcpy( d_faces,   faces,   sizeof(int)    * nFaces  * nVertsPerFace, cudaMemcpyHostToDevice );
-        cudaMemcpy( d_flowmap, flowmap, sizeof(double) * nPoints * nDim,          cudaMemcpyHostToDevice );
+        hipMemcpy( d_coords,  coords,  sizeof(double) * nPoints * nDim,          hipMemcpyHostToDevice );
+        hipMemcpy( d_faces,   faces,   sizeof(int)    * nFaces  * nVertsPerFace, hipMemcpyHostToDevice );
+        hipMemcpy( d_flowmap, flowmap, sizeof(double) * nPoints * nDim,          hipMemcpyHostToDevice );
 
         /* Allocate additional memory at the GPU */
-        cudaMalloc( &d_nFacesPerPoint, sizeof(int)    * nPoints);
-        cudaMalloc( &d_logSqrt,        sizeof(double) * nPoints);
-        cudaMalloc ((void**)&d_res, sizeof(double) * nPoints * nDim * nDim); 
-        cudaMalloc( &d_gra1, sizeof(double) * nPoints * nDim );
-        cudaMalloc( &d_gra2, sizeof(double) * nPoints * nDim );
-        if (nDim == 3) cudaMalloc( &d_gra3, sizeof(double) * nPoints * nDim );
-        cudaMalloc ((void**)&d_cg_tensor1, sizeof(double) * nPoints * nDim); 
-        cudaMalloc ((void**)&d_cg_tensor2, sizeof(double) * nPoints * nDim); 
-        if (nDim == 3) cudaMalloc ((void**)&d_cg_tensor3, sizeof(double) * nPoints * nDim);             
-        cudaMalloc ((void**)&devInfo, sizeof(int));
+        hipMalloc( &d_nFacesPerPoint, sizeof(int)    * nPoints);
+        hipMalloc( &d_logSqrt,        sizeof(double) * nPoints);
+        hipMalloc ((void**)&d_res, sizeof(double) * nPoints * nDim * nDim); 
+        hipMalloc( &d_gra1, sizeof(double) * nPoints * nDim );
+        hipMalloc( &d_gra2, sizeof(double) * nPoints * nDim );
+        if (nDim == 3) hipMalloc( &d_gra3, sizeof(double) * nPoints * nDim );
+        hipMalloc ((void**)&d_cg_tensor1, sizeof(double) * nPoints * nDim); 
+        hipMalloc ((void**)&d_cg_tensor2, sizeof(double) * nPoints * nDim); 
+        if (nDim == 3) hipMalloc ((void**)&d_cg_tensor3, sizeof(double) * nPoints * nDim);        
+        hipMalloc ((void**)&devInfo, sizeof(int));
 
         /* Copy data to GPU */
-        cudaMalloc( &d_facesPerPoint, sizeof(int) * nFacesPerPoint[ nPoints - 1 ]);
-        cudaMemcpy( d_nFacesPerPoint, nFacesPerPoint, sizeof(int) * nPoints,                       cudaMemcpyHostToDevice );
-        cudaMemcpy( d_facesPerPoint,  facesPerPoint,  sizeof(int) * nFacesPerPoint[ nPoints - 1 ], cudaMemcpyHostToDevice );
+        hipMalloc( &d_facesPerPoint, sizeof(int) * nFacesPerPoint[ nPoints - 1 ]);
+        hipMemcpy( d_nFacesPerPoint, nFacesPerPoint, sizeof(int) * nPoints,                       hipMemcpyHostToDevice );
+        hipMemcpy( d_facesPerPoint,  facesPerPoint,  sizeof(int) * nFacesPerPoint[ nPoints - 1 ], hipMemcpyHostToDevice );
 
         int maxi = nFacesPerPoint[0];
         for (int i=1; i<nPoints; i++)
@@ -230,79 +227,72 @@ int main(int argc, char *argv[]) {
         int localStride = size * omp_get_thread_num();
 
         //Create Hip events
-        cudaEvent_t start, stop;
-        cudaEventCreate(&start);
-        cudaEventCreate(&stop);
-        cudaDeviceSynchronize();
-          	
+        hipEvent_t start, stop;
+        hipEventCreate(&start);
+        hipEventCreate(&stop);
+        hipDeviceSynchronize();
+        	
         //Launch preproccesing kernel
-        cudaEventRecord(start, cudaStreamDefault);
+        hipEventRecord(start, hipStreamDefault);
         /* STEP 1: compute gradient, tensors and ATxA based on neighbors flowmap values */
-        create_facesPerPoint_vector_GPU<<<grid_numCoords, block>>> (localStride, nDim, nPoints, nFaces, nVertsPerFace, 
+        hipLaunchKernelGGL(create_facesPerPoint_vector_GPU, grid_numCoords,block, 0, hipStreamDefault, localStride, nDim, nPoints, nFaces, nVertsPerFace, 
             d_faces, d_nFacesPerPoint, d_facesPerPoint);
-	cudaEventRecord(stop, cudaStreamDefault);
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(preproc_times+ omp_get_thread_num() , start, stop);
+	hipEventRecord(stop, hipStreamDefault);
+        hipEventSynchronize(stop);
+        hipEventElapsedTime(preproc_times+ omp_get_thread_num() , start, stop);
         
-        cudaEventRecord(start, cudaStreamDefault);
+        hipEventRecord(start, hipStreamDefault);
 #ifndef PINNED
         if ( nDim == 2 )
-            gpu_compute_gradient_2D <<<grid_numCoords, block>>> (localStride,
+                hipLaunchKernelGGL(gpu_compute_gradient_2D,grid_numCoords, block, 0, hipStreamDefault, localStride,
                 nPoints, nVertsPerFace, 
                 d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, 
                 d_logSqrt, t_eval);
         else
-            gpu_compute_gradient_3D <<<grid_numCoords, block>>> (localStride,
+                hipLaunchKernelGGL(gpu_compute_gradient_3D, grid_numCoords, block, 0, hipStreamDefault, localStride,
                 nPoints, nVertsPerFace, 
                 d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, 
-                d_logSqrt, t_eval);
+                d_logSqrt, t_eval); 
+                
 #else
         if ( nDim == 2 )
-            gpu_compute_gradient_2D <<<grid_numCoords, block,0, cudaStreamDefault>>> (localStride,
+                hipLaunchKernelGGL(gpu_compute_gradient_2D,grid_numCoords, block, 0, hipStreamDefault, localStride,
                 nPoints, nVertsPerFace, 
                 d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, 
-                 d_logSqrt, t_eval);
+                d_logSqrt, t_eval);
         else
-            gpu_compute_gradient_3D <<<grid_numCoords, block,0,cudaStreamDefault>>> (localStride,
+                hipLaunchKernelGGL(gpu_compute_gradient_3D, grid_numCoords, block, 0, hipStreamDefault, localStride,
                 nPoints, nVertsPerFace, 
                 d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, 
-                 d_logSqrt, t_eval);
-
+                d_logSqrt, t_eval);                
 #endif
-		cudaDeviceSynchronize();
-		
-        cudaEventRecord(stop, cudaStreamDefault);
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(kernel_times + omp_get_thread_num(), start, stop);
+
+        hipEventRecord(stop, hipStreamDefault);
+        hipEventSynchronize(stop);
+        hipEventElapsedTime(kernel_times + omp_get_thread_num(), start, stop);
 	
 #ifndef PINNED
-		cudaMemcpy (&logSqrt[localStride],  &d_logSqrt[localStride], sizeof(double) * (nPoints / omp_get_num_threads()), cudaMemcpyDeviceToHost);
+        hipMemcpy (&logSqrt[localStride],  &d_logSqrt[localStride], sizeof(double) * (nPoints / omp_get_num_threads()), hipMemcpyDeviceToHost);
 #else
-		cudaMemcpyAsync (&logSqrt[localStride],  &d_logSqrt[localStride], sizeof(double) * (nPoints / omp_get_num_threads()), cudaMemcpyDeviceToHost,cudaStreamDefault);
+        hipMemcpyAsync (&logSqrt[localStride],  &d_logSqrt[localStride], sizeof(double) * (nPoints / omp_get_num_threads()), hipMemcpyDeviceToHost,hipStreamDefault);
 #endif
-	  cudaDeviceSynchronize();
-
-        error = cudaGetLastError();
-        if ( error != cudaSuccess )
-            printf("ErrCUDA A: %s\n", cudaGetErrorString( error ) );
-
         fflush(stdout);
         
         /* Free memory */
-        cudaFree(d_coords);
-        cudaFree(d_flowmap);
-        cudaFree(d_faces);
-        cudaFree(d_nFacesPerPoint);
-        cudaFree(d_facesPerPoint);
-        cudaFree(d_logSqrt);
-        cudaFree(d_gra1);
-        cudaFree(d_gra2);
-        cudaFree(d_gra3);
-        cudaFree(d_res);
-        cudaFree(d_cg_tensor1);
-        cudaFree(d_cg_tensor2);
-        cudaFree(d_cg_tensor3);
-        cudaFree(devInfo);
+        hipFree(d_coords);
+        hipFree(d_flowmap);
+        hipFree(d_faces);
+        hipFree(d_nFacesPerPoint);
+        hipFree(d_facesPerPoint);
+        hipFree(d_logSqrt);
+        hipFree(d_gra1);
+        hipFree(d_gra2);
+        hipFree(d_gra3);
+        hipFree(d_res);
+        hipFree(d_cg_tensor1);
+        hipFree(d_cg_tensor2);
+        hipFree(d_cg_tensor3);
+        hipFree(devInfo);
     }
     struct timeval global_timer_end;
     gettimeofday(&global_timer_end, NULL);
@@ -316,7 +306,7 @@ int main(int argc, char *argv[]) {
     {
         printf("\nWriting result in output file...                  ");
         fflush(stdout);
-        FILE *fp_w = fopen("cuda_result.csv", "w");
+        FILE *fp_w = fopen("rocm_results.csv", "w");
         for ( int ii = 0; ii < nPoints ; ii++ )
             fprintf(fp_w, "%f\n", logSqrt[ii]);
         fclose(fp_w);
@@ -340,9 +330,9 @@ int main(int argc, char *argv[]) {
     free(faces);
     free(flowmap);
 #ifndef PINNED            
-    free(logSqrt);
+    free(logSqrt);       
 #else
-    cudaFree(logSqrt);
+    hipFree(logSqrt);
 #endif
     free(nFacesPerPoint);
     free(facesPerPoint);

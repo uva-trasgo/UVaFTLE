@@ -1,9 +1,11 @@
 #include <stdio.h>
+#include <math.h>
 #include "arithmetic.h"
+#include <hip/hip_runtime.h>
 
 __global__ void gpu_compute_gradient_2D ( int stride, int numCoords, int nVertsPerFace, double *coords, double *flowmap, int *faces, int *nFacesPerPoint, int *facesPerPoint, double *d_logSqrt, double T) 
 {
-    int th_id = blockIdx.x*blockDim.x + threadIdx.x + stride;
+	int th_id = blockIdx.x*blockDim.x + threadIdx.x + stride;
 
     if (th_id < numCoords){ 
         int nDim = 2; 
@@ -307,9 +309,9 @@ double *d_logSqrt, double T) //double *gra1, double *gra2 )
         }
 
         /* Tens */
-	ftle_matrix[0] = gra10 * gra10 + gra20 * gra20 + gra30 * gra30;
-	ftle_matrix[1] = gra10 * gra11 + gra20 * gra21 + gra30 * gra31;
-	ftle_matrix[2] = gra10 * gra12 + gra20 * gra22 + gra30 * gra32;
+    ftle_matrix[0] = gra10 * gra10 + gra20 * gra20 + gra30 * gra30;
+    ftle_matrix[1] = gra10 * gra11 + gra20 * gra21 + gra30 * gra31;
+    ftle_matrix[2] = gra10 * gra12 + gra20 * gra22 + gra30 * gra32;
     ftle_matrix[3] = ftle_matrix[1];
     ftle_matrix[4] = gra11 * gra11 + gra21 * gra21 + gra31 * gra31;
     ftle_matrix[5] = gra11 * gra12 + gra11 * gra22 + gra31 * gra32;

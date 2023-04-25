@@ -1,4 +1,5 @@
 #include "preprocess.h"
+#include <hip/hip_runtime.h>
 
 void read_coordinates ( char *filename, int nDim, int nPoints, double *coords )
 {
