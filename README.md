@@ -101,7 +101,7 @@ UVaFTLE , we would appreciate that you cite the following paper:
 
 ```BibTeX
 	@Article{Carratala2023:UvaFTLE,
-	author = "Carratal{\'a}-S{\'a}ez, R., Torres, Y., Sierra-Pallares, J. et al.",
+	author = "Carratal{\'a}-S{\'a}ez, Roc{\'i}o and Torres, Yuri and Sierra-Pallares, Jos{\'e} and others",
 	title="UVaFTLE: Lagrangian finite time Lyapunov exponent extraction for fluid dynamic applications",
 	journal="The Journal of Supercomputing",
 	year="2023",
