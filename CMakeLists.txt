@@ -175,7 +175,7 @@ IF(WITH_SYCL_CPU STREQUAL "yes"  OR WITH_SYCL_CUDA STREQUAL "yes" OR WITH_SYCL_R
 		${SYCL_SRCDIR}/arithmetic.cpp ${SYCL_SRCDIR}/ftle.cpp)
 
 	IF(WITH_SYCL_CPU STREQUAL "yes")
-                SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include -march=native --hipsycl-targets='omp' --hipsycl-cpu-cxx=/home/trasgo/local/llvm14/bin/clang++")
+                SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include -march=native --hipsycl-targets='omp' --hipsycl-cpu-cxx=/home/trasgo/local/llvm14/bin/clang++ -DBLOCK=512")
                 SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib --hipsycl-targets='omp' --hipsycl-cpu-cxx=/home/trasgo/local/llvm14/bin/clang++ -lstdc++ -L${BOOST_DIR}/lib  -lm")
                 ADD_EXECUTABLE(ftle_sycl_cpu  ${SYCL_SRC})
                 SET_TARGET_PROPERTIES(ftle_sycl_cpu  PROPERTIES COMPILE_FLAGS  ${SYCL_COMPILE_FLAGS})
@@ -187,7 +187,7 @@ IF(WITH_SYCL_CPU STREQUAL "yes"  OR WITH_SYCL_CUDA STREQUAL "yes" OR WITH_SYCL_R
 	SET (ARCH "sm_70" )
 	IF(WITH_SYCL_CUDA STREQUAL "yes")
 		#TODO configurar arquitectura en CmakeLIST
-		SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include --hipsycl-targets=cuda:sm_70 -DCUDA_DEVICE")
+		SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include --hipsycl-targets=cuda:sm_70 -DCUDA_DEVICE -DBLOCK=512")
 		SET(SYCL_LINK_FLAGS " -L${BOOST_DIR}/lib --hipsycl-targets=cuda:sm_70")
 		ADD_EXECUTABLE(ftle_sycl_cuda  ${SYCL_SRC})
 		SET_TARGET_PROPERTIES(ftle_sycl_cuda  PROPERTIES COMPILE_FLAGS 	${SYCL_COMPILE_FLAGS})
@@ -197,7 +197,7 @@ IF(WITH_SYCL_CPU STREQUAL "yes"  OR WITH_SYCL_CUDA STREQUAL "yes" OR WITH_SYCL_R
 	
 	IF(WITH_SYCL_ROCM STREQUAL "yes")
 		#TODO configurar arquitectura en CmakeLIST
-		SET(ROCM_COMMON_FLAGS "--rocm-path=${ROCM_DIR} --hipsycl-targets=hip:gfx900 -I${ROCM_DIR}/hip/include/hip/ -DHIP_DEVICE -Xclang -mlink-bitcode-file -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc")
+		SET(ROCM_COMMON_FLAGS "--rocm-path=${ROCM_DIR} --hipsycl-targets=hip:gfx900 -I${ROCM_DIR}/hip/include/hip/ -DHIP_DEVICE -Xclang -mlink-bitcode-file -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc -DBLOCK=512")
 		SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include ${ROCM_COMMON_FLAGS}")
 		SET(SYCL_LINK_FLAGS "-lstdc++ -L${ROCM_DIR}/lib -L${ROCM_DIR}/lib64 -L${BOOST_DIR}/lib ${ROCM_COMMON_FLAGS} -lm")
 		ADD_EXECUTABLE(ftle_sycl_rocm  ${SYCL_SRC})
@@ -207,7 +207,7 @@ IF(WITH_SYCL_CPU STREQUAL "yes"  OR WITH_SYCL_CUDA STREQUAL "yes" OR WITH_SYCL_R
 	ENDIF()
 	
 	IF(WITH_SYCL_CUDA STREQUAL "yes" AND WITH_SYCL_ROCM STREQUAL "yes")
-           SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include -DGPU_ALL --hipsycl-explicit-multipass --hipsycl-targets='hip:gfx900\;cuda:sm_70' --hipsycl-cpu-cxx=/home/trasgo/local/llvm14/bin/clang++ --rocm-path=${ROCM_DIR} -I${ROCM_DIR}/hip/include/ -Xclang -mlink-bitcode-file -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc")
+           SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include -DGPU_ALL --hipsycl-explicit-multipass --hipsycl-targets='hip:gfx900\;cuda:sm_70' --hipsycl-cpu-cxx=/home/trasgo/local/llvm14/bin/clang++ --rocm-path=${ROCM_DIR} -I${ROCM_DIR}/hip/include/ -Xclang -mlink-bitcode-file -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc -DBLOCK=512")
            SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib --hipsycl-explicit-multipass --hipsycl-targets='hip:gfx900\;cuda:sm_70' --hipsycl-cpu-cxx=/home/trasgo/local/llvm14/bin/clang++ -lstdc++ -L${ROCM_DIR}/lib -L${ROCM_DIR}/lib64 -L${BOOST_DIR}/lib ${ROCM_COMMON_FLAGS} -lm")
            ADD_EXECUTABLE(ftle_sycl_gpu  ${SYCL_SRC})
            SET_TARGET_PROPERTIES(ftle_sycl_gpu  PROPERTIES COMPILE_FLAGS  ${SYCL_COMPILE_FLAGS})

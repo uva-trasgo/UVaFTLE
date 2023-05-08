@@ -10,3 +10,6 @@ cmake_install.cmake
 ftle_*
 *csv
 *sh
+CPU/src/*c
+CUDA/src/*c
+HIP/src/*c

@@ -1,3 +1,7 @@
+#include <CL/sycl.hpp>
+using namespace cl::sycl;
+
+
 #ifndef STRUCTS_H
 #define STRUCTS_H
 typedef struct Face {
