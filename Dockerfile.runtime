@@ -71,7 +71,8 @@ RUN cp /uvaftle/CPU/bin/ftle_static /usr/bin/ftle_static-cpu
 RUN cp /uvaftle/CPU/bin/ftle_dynamic /usr/bin/ftle_dynamic-cpu 
 RUN cp /uvaftle/CPU/bin/ftle_guided /usr/bin/ftle_guided-cpu 
 
-RUN cp /uvaftle/CUDA/bin/ftle /usr/bin/ftle-gpu 
+RUN cp /uvaftle/CUDA/bin/ftle_cuda /usr/bin/ftle-gpu
+RUN cp /uvaftle/CUDA/bin/ftle_cuda/ftle_cuda_pinned /usr/bin/ftle-pinned-gpu
 
 # Container init directory
 WORKDIR /uvaftle
