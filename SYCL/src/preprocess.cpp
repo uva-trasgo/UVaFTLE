@@ -126,34 +126,32 @@ void create_nFacesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVert
 
 cl::sycl::event create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, cl::sycl::buffer<int, 1> *b_faces, cl::sycl::buffer<int, 1> *b_nFacesPerPoint, cl::sycl::buffer<int, 1> *b_facesPerPoint)
 {
-	return q->submit([&](handler &h){
-		auto faces = b_faces->get_access<access::mode::read>(h);
-		auto nFacesPerPoint = b_nFacesPerPoint->get_access<access::mode::read>(h);
-		auto facesPerPoint = b_facesPerPoint->get_access<access::mode::discard_write>(h);
+return q->submit([&](handler &h){
+	auto faces = b_faces->get_access<access::mode::read>(h);
+	auto nFacesPerPoint = b_nFacesPerPoint->get_access<access::mode::read>(h);
+	auto facesPerPoint = b_facesPerPoint->get_access<access::mode::discard_write>(h);
 
 #if defined(CUDA_DEVICE) || defined(HIP_DEVICE)		
-		int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
-		h.parallel_for<class preprocess> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
-		int ip = i.get_global_id(0) + offset;
-		if(i.get_global_id(0) < nPoints){
+	int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
+	h.parallel_for<class preprocess> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
+	int th_id = i.get_global_id(0) + offset;
+	if(i.get_global_id(0) < nPoints){
 #else
-		h.parallel_for<class preprocess> (range<1>{static_cast<size_t>(nPoints)}, [=](id<1> i){
-		{
-			int ip = i[0] + offset;
+	h.parallel_for<class preprocess> (range<1>{static_cast<size_t>(nPoints)}, [=](id<1> i){{
+	int th_id = i[0] + offset;
 #endif
-			int count, iface, ipf, nFacesP, iFacesP;   
-			count = 0;
-			iFacesP = ( ip == 0 ) ? 0 : nFacesPerPoint[ip-1];
-			nFacesP = ( ip == 0 ) ? nFacesPerPoint[ip] : nFacesPerPoint[ip] - nFacesPerPoint[ip-1];
-			for ( iface = 0; ( iface < nFaces ) && ( count < nFacesP ); iface++ ){     
-				for ( ipf = 0; ipf < nVertsPerFace; ipf++ ){       
-					if ( faces[iface * nVertsPerFace + ipf] == ip ){
-						facesPerPoint[iFacesP - faces_offset + count] = iface;
-						count++;
-					}
+		int count, iface, ipf, nFacesP, iFacesP;
+		count = 0;
+		iFacesP = (( th_id == 0 ) ? 0 : nFacesPerPoint[th_id-1]) - faces_offset;
+		nFacesP = ( th_id == 0 ) ? nFacesPerPoint[th_id] : nFacesPerPoint[th_id] - nFacesPerPoint[th_id-1];
+		for ( iface = 0; ( iface < nFaces ) && ( count < nFacesP ); iface++ ){     
+			for ( ipf = 0; ipf < nVertsPerFace; ipf++ ){       
+				if ( faces[iface * nVertsPerFace + ipf] == th_id ){
+					facesPerPoint[iFacesP + count] = iface;
+					count++;
 				}
 			}
-			}
-		}); /*End parallel for*/
-	}); /*End submit*/	
+		}
+	}}); /*End parallel for*/
+}); /*End submit*/	
 }
