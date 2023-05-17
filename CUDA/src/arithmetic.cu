@@ -5,7 +5,7 @@ __global__ void gpu_compute_gradient_2D(int nPoints, int offset, int faces_offse
 {
 	int gpu_id = blockIdx.x*blockDim.x + threadIdx.x;
 	int th_id = gpu_id + offset;
-	if (th_id < nPoints){ 
+	if (gpu_id < nPoints){
 		int nDim = 2; 
 		int iface, nFaces, idxface, ivert;
 		int closest_points_0 = -1;
@@ -154,7 +154,7 @@ __global__ void gpu_compute_gradient_3D (int nPoints, int offset, int faces_offs
 {
 	int gpu_id = blockIdx.x*blockDim.x + threadIdx.x;
 	int th_id = gpu_id + offset;
-	if (th_id < nPoints){ 
+	if (gpu_id < nPoints){ 
 		int nDim = 3; 
 		int iface, nFaces, idxface, ivert;
 		int closest_points_0 = -1;

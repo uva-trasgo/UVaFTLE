@@ -263,7 +263,6 @@ int main(int argc, char *argv[]) {
 	printf("DONE\n\n");
 	printf("--------------------------------------------------------\n");
 	fflush(stdout);
-
 	/* Write result in output file (if desired) */
 	if ( atoi(argv[6]) )
 	{
@@ -273,6 +272,11 @@ int main(int argc, char *argv[]) {
 		for ( int ii = 0; ii < nPoints; ii++ )
 			fprintf(fp_w, "%f\n", logSqrt[ii]);
 		fclose(fp_w);
+		fp_w = fopen("sycl_preproc.csv", "w");
+                for ( int ii = 0; ii < nFacesPerPoint[nPoints-1]; ii++ )
+                        fprintf(fp_w, "%d\n", facesPerPoint[ii]);
+                fclose(fp_w);
+
 		printf("DONE\n\n");
 		printf("--------------------------------------------------------\n");
 		fflush(stdout);

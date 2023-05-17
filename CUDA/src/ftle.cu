@@ -53,21 +53,22 @@ int main(int argc, char *argv[]) {
 	fflush(stdout);
 
 	// Check usage
-	if (argc != 7)
+	if (argc != 8)
 	{
-		printf("USAGE: %s <nDim> <coords_file> <faces_file> <flowmap_file> <t_eval> <print2file>\n", argv[0]);
+		printf("USAGE: %s <nDim> <coords_file> <faces_file> <flowmap_file> <t_eval> <print2file> <nDevices>\n", argv[0]);
 		printf("\tnDim:    dimensions of the space (2D/3D)\n");
 		printf("\tcoords_file:   file where mesh coordinates are stored.\n");
 		printf("\tfaces_file:    file where mesh faces are stored.\n");
 		printf("\tflowmap_file:  file where flowmap values are stored.\n");
 		printf("\tt_eval:        time when compute ftle is desired.\n");
 		printf("\tprint to file? (0-NO, 1-YES)\n");
+                printf("\tnDevices:       number of GPUs\n");
 		return 1;
 	}
 
 	double t_eval = atof(argv[5]);
 	int check_EOF;
-	int nDevices = omp_get_num_threads(), maxDevices;
+	int nDevices = atoi(argv[7]), maxDevices;
 	char buffer[255];
 	int nDim, nVertsPerFace, nPoints, nFaces;
 	FILE *file;
@@ -157,6 +158,7 @@ int main(int argc, char *argv[]) {
 	// Assign faces to vertices and generate nFacesPerPoint and facesPerPoint GPU vectors  
 	create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
 	facesPerPoint = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
+	printf("n device %d, max devices %d\n", nDevices, maxDevices);
 	int v_points[maxDevices];
 	int offsets[maxDevices];
 	int v_points_faces[maxDevices];
@@ -222,27 +224,25 @@ int main(int argc, char *argv[]) {
 		
 		cudaMemcpy( d_nFacesPerPoint, nFacesPerPoint, sizeof(int) * nPoints,					   cudaMemcpyHostToDevice );
 		cudaMalloc( &d_facesPerPoint, sizeof(int) * v_points_faces[d]);		
-		cudaMemcpy( d_facesPerPoint,  facesPerPoint + offsets_faces[d],  sizeof(int) * v_points_faces[d], cudaMemcpyHostToDevice );
 
 		/* Create dim3 for GPU */
 		
 		dim3 block(BLOCK);
 		int numBlocks = (int) (ceil((double)v_points[d]/(double)block.x)+1);
-		dim3 grid_numCoords(numBlocks);
+		dim3 grid_numCoords(numBlocks+1);
 
 		//Create Hip events
 		cudaEvent_t start, stop;
 		cudaEventCreate(&start);
-		cudaEventCreate(&stop);
-		  	
+		cudaEventCreate(&stop);  	
 		//Launch preproccesing kernel
 		cudaEventRecord(start, cudaStreamDefault);
 		/* STEP 1: compute gradient, tensors and ATxA based on neighbors flowmap values */
 		create_facesPerPoint_vector<<<grid_numCoords, block>>> (nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, d_faces, d_nFacesPerPoint, d_facesPerPoint);
+
 		cudaEventRecord(stop, cudaStreamDefault);
 		cudaEventSynchronize(stop);
 		cudaEventElapsedTime(preproc_times+ omp_get_thread_num() , start, stop);
-		
 		cudaEventRecord(start, cudaStreamDefault);
 #ifndef PINNED
 		if ( nDim == 2 )
@@ -262,11 +262,12 @@ int main(int argc, char *argv[]) {
 		cudaEventElapsedTime(kernel_times + omp_get_thread_num(), start, stop);
 	
 #ifndef PINNED
- 		cudaMemcpy (logSqrt +offsets[d],  &d_logSqrt, sizeof(double) * v_points[d], cudaMemcpyDeviceToHost);
+ 		cudaMemcpy (logSqrt +offsets[d],  d_logSqrt, sizeof(double) * v_points[d], cudaMemcpyDeviceToHost);
 #else
-		cudaMemcpyAsync (logSqrt + offsets[d],  &d_logSqrt, sizeof(double) * v_points[d], cudaMemcpyDeviceToHost, cudaStreamDefault);
+		cudaMemcpyAsync (logSqrt + offsets[d],  d_logSqrt, sizeof(double) * v_points[d], cudaMemcpyDeviceToHost, cudaStreamDefault);
 		cudaDeviceSynchronize();
 #endif
+		cudaMemcpy(facesPerPoint + offsets_faces[d], d_facesPerPoint,  sizeof(int) * v_points_faces[d], cudaMemcpyDeviceToHost );	
 		fflush(stdout);
 		
 		/* Free memory */
@@ -301,6 +302,10 @@ int main(int argc, char *argv[]) {
 		for ( int ii = 0; ii < nPoints; ii++ )
 			fprintf(fp_w, "%f\n", logSqrt[ii]);
 		fclose(fp_w);
+		fp_w = fopen("cuda_preproc.csv", "w");
+                for ( int ii = 0; ii < nFacesPerPoint[nPoints-1]; ii++ )
+                         fprintf(fp_w, "%d\n", facesPerPoint[ii]);
+                fclose(fp_w);
 		printf("DONE\n\n");
 		printf("--------------------------------------------------------\n");
 		fflush(stdout);
