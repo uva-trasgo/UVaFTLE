@@ -1,5 +1,5 @@
 #include "arithmetic.h"
-::event compute_gradient_2D (queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, ::buffer<double, 1> *b_coords, ::buffer<double, 1> *b_flowmap, ::buffer<int, 1> *b_faces, ::buffer<int, 1> *b_nFacesPerPoint, ::buffer<int, 1> *b_facesPerPoint, ::buffer<double, 1> *b_log_sqrt, double T ){	
+::event compute_gradient_2D (queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, ::buffer<double, 1> *b_coords, ::buffer<double, 1> *b_flowmap, ::buffer<int, 1> *b_faces, ::buffer<int, 1> *b_nFacesPerPoint, ::buffer<int, 1> *b_facesPerPoint, ::buffer<double, 1> *b_log_sqrt, double T )	
 {
 return q->submit([&](handler &h){
 	auto coords = b_coords->get_access<access::mode::read>(h);
@@ -166,7 +166,7 @@ return q->submit([&](handler &h){
 }); /*End submit*/	
 }
 
-::event compute_gradient_3D (queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, int faces_offset,::buffer<double, 1> *b_coords, ::buffer<double, 1> *b_flowmap, ::buffer<int, 1> *b_faces, ::buffer<int, 1> *b_nFacesPerPoint, ::buffer<int, 1> *b_facesPerPoint, ::buffer<double, 1> *b_log_sqrt, double T )
+::event compute_gradient_3D (queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, ::buffer<double, 1> *b_coords, ::buffer<double, 1> *b_flowmap, ::buffer<int, 1> *b_faces, ::buffer<int, 1> *b_nFacesPerPoint, ::buffer<int, 1> *b_facesPerPoint, ::buffer<double, 1> *b_log_sqrt, double T )
 {
 return q->submit([&](handler &h){
 	auto coords = b_coords->get_access<access::mode::read, access::target::constant_buffer>(h);

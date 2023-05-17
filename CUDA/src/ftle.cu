@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
 
 	double t_eval = atof(argv[5]);
 	int check_EOF;
-	int nDevices = omp_get_num_threads();
+	int nDevices = omp_get_num_threads(), maxDevices;
 	char buffer[255];
 	int nDim, nVertsPerFace, nPoints, nFaces;
 	FILE *file;
@@ -184,7 +184,7 @@ int main(int argc, char *argv[]) {
 	struct timeval global_timer_start;
 	
 	gettimeofday(&global_timer_start, NULL);
-	#pragma omp parallel default(none)  shared(stdout, logSqrt, nDim, nPoints, nFaces, nVertsPerFace, numThreads, preproc_times, kernel_times, faces, coords, nFacesPerPoint, facesPerPoint, flowmap, t_eval)  
+	#pragma omp parallel default(none)  shared(stdout, logSqrt, nDim, nPoints, nFaces, nVertsPerFace, numThreads, preproc_times, kernel_times, v_points, v_points_faces, offsets, offsets_faces, faces, coords, nFacesPerPoint, facesPerPoint, flowmap, t_eval)  
 	{
 		numThreads = omp_get_num_threads();
 		int d = omp_get_thread_num();
@@ -221,13 +221,13 @@ int main(int argc, char *argv[]) {
 		/* Copy data to GPU */
 		
 		cudaMemcpy( d_nFacesPerPoint, nFacesPerPoint, sizeof(int) * nPoints,					   cudaMemcpyHostToDevice );
-		cudaMalloc( &d_facesPerPoint, sizeof(int) * v_point_faces[d]);		
-		cudaMemcpy( d_facesPerPoint,  facesPerPoint + offset_faces[d],  sizeof(int) * v_point_faces[d], cudaMemcpyHostToDevice );
+		cudaMalloc( &d_facesPerPoint, sizeof(int) * v_points_faces[d]);		
+		cudaMemcpy( d_facesPerPoint,  facesPerPoint + offsets_faces[d],  sizeof(int) * v_points_faces[d], cudaMemcpyHostToDevice );
 
 		/* Create dim3 for GPU */
 		
 		dim3 block(BLOCK);
-		int numBlocks = (int) (ceil((double)v_points[hilo]/(double)block.x)+1);
+		int numBlocks = (int) (ceil((double)v_points[d]/(double)block.x)+1);
 		dim3 grid_numCoords(numBlocks);
 
 		//Create Hip events
@@ -262,9 +262,9 @@ int main(int argc, char *argv[]) {
 		cudaEventElapsedTime(kernel_times + omp_get_thread_num(), start, stop);
 	
 #ifndef PINNED
-		cudaMemcpy (&logSqrt[offsets[d]],  &d_logSqrt, sizeof(double) * v_points[d]), cudaMemcpyDeviceToHost);
+ 		cudaMemcpy (logSqrt +offsets[d],  &d_logSqrt, sizeof(double) * v_points[d], cudaMemcpyDeviceToHost);
 #else
-		cudaMemcpyAsync (&logSqrt[offsets[d]],  &d_logSqrt, sizeof(double) * v_points[d], cudaMemcpyDeviceToHost, cudaStreamDefault);
+		cudaMemcpyAsync (logSqrt + offsets[d],  &d_logSqrt, sizeof(double) * v_points[d], cudaMemcpyDeviceToHost, cudaStreamDefault);
 		cudaDeviceSynchronize();
 #endif
 		fflush(stdout);

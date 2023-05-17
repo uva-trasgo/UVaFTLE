@@ -249,7 +249,7 @@ int main(int argc, char *argv[]) {
 		}
 		
         /* Compute gradient, tensors and ATxA based on neighbors flowmap values, then get the max eigenvalue */
-       	for(int d=0; d < nDevices; d++){
+       		for(int d=0; d < nDevices; d++){
 			if ( nDim == 2 ){
 				event_list[nDevices + d] = compute_gradient_2D ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint,(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))),(d==0 ? &b_logSqrt0 : (d==1 ? &b_logSqrt1 : (d==2 ? &b_logSqrt2 : &b_logSqrt3))), t_eval);
 		  	}else{
