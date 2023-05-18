@@ -185,9 +185,9 @@ int main(int argc, char *argv[]) {
 
 	/* Allocate additional memory at the CPU */
 	nFacesPerPoint = (int *) malloc( sizeof(int) * nPoints ); /* REMARK: nFacesPerPoint accumulates previous nFacesPerPoint */
-	logSqrt = (double*) malloc( sizeof(double) * nPoints);
 	// Assign faces to vertices and generate nFacesPerPoint and facesPerPoint GPU vectors  
 	create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
+	logSqrt= (double*) malloc( sizeof(double) * nPoints);
 	facesPerPoint = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
 	int v_points[maxDevices] = {1,1,1,1};
 	int offsets[maxDevices] =  {0,0,0,0};
@@ -277,8 +277,9 @@ int main(int argc, char *argv[]) {
 	free(faces);
 	free(flowmap);
 	free(logSqrt);
-	free(nFacesPerPoint);
 	free(facesPerPoint);
+	free(nFacesPerPoint);
+
 
 	return 0;
 }

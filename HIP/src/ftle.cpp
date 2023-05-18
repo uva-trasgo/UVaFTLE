@@ -150,14 +150,17 @@ int main(int argc, char *argv[]) {
 
 	/* Allocate additional memory at the CPU */
 	nFacesPerPoint = (int *) malloc( sizeof(int) * nPoints ); /* REMARK: nFacesPerPoint accumulates previous nFacesPerPoint */
-#ifdef PINNED
-	hipHostMalloc( (void **) &logSqrt, sizeof(double) * nPoints);
-#else
-	logSqrt= (double*) malloc( sizeof(double) * nPoints);
-#endif
 	// Assign faces to vertices and generate nFacesPerPoint and facesPerPoint GPU vectors  
 	create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
+#ifdef PINNED
+	hipHostMalloc( (void **) &logSqrt, sizeof(double) * nPoints);
+	hipHostMalloc( (void **) &facesPerPoint, sizeof(int) * nFacesPerPoint[ nPoints - 1 ]);
+#else
+	logSqrt= (double*) malloc( sizeof(double) * nPoints);
 	facesPerPoint = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
+#endif
+	
+	
 	int v_points[maxDevices];
 	int offsets[maxDevices];
 	int v_points_faces[maxDevices];
@@ -228,17 +231,11 @@ int main(int argc, char *argv[]) {
 		hipEventSynchronize(stop);
 		hipEventElapsedTime(preproc_times+ omp_get_thread_num() , start, stop);
 		hipEventRecord(start, hipStreamDefault);
-#ifndef PINNED
-		if ( nDim == 2 )
-			hipLaunchKernelGGL(gpu_compute_gradient_2D, grid_numCoords, block, 0, hipStreamDefault, v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, d_logSqrt, t_eval);
-		else
-			hipLaunchKernelGGL(gpu_compute_gradient_3D, grid_numCoords, block, 0, hipStreamDefault, v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, d_logSqrt, t_eval);
-#else
+
 		if ( nDim == 2 )
 			hipLaunchKernelGGL(gpu_compute_gradient_2D,grid_numCoords, block, 0, hipStreamDefault, v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, d_logSqrt, t_eval);
 		else
 			hipLaunchKernelGGL(gpu_compute_gradient_3D, grid_numCoords, block, 0, hipStreamDefault, v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, d_logSqrt, t_eval);
-#endif
 
 		hipEventRecord(stop, hipStreamDefault);
 		hipEventSynchronize(stop);
@@ -246,11 +243,13 @@ int main(int argc, char *argv[]) {
 	
 #ifndef PINNED
 		hipMemcpy (logSqrt +offsets[d],  d_logSqrt, sizeof(double) * v_points[d], hipMemcpyDeviceToHost);
+		hipMemcpy(facesPerPoint + offsets_faces[d], d_facesPerPoint,  sizeof(int) * v_points_faces[d], hipMemcpyDeviceToHost );	
 #else
 		hipMemcpyAsync (logSqrt + offsets[d],  d_logSqrt, sizeof(double) * v_points[d], hipMemcpyDeviceToHost, hipStreamDefault);
+		hipMemcpyAsync (facesPerPoint + offsets_faces[d], d_facesPerPoint,  sizeof(int) * v_points_faces[d],  hipStreamDefault);
 		hipDeviceSynchronize();
 #endif
-		hipMemcpy(facesPerPoint + offsets_faces[d], d_facesPerPoint,  sizeof(int) * v_points_faces[d], hipMemcpyDeviceToHost );	
+		
 		fflush(stdout);
 		
 		/* Free memory */
@@ -300,12 +299,13 @@ int main(int argc, char *argv[]) {
 	free(faces);
 	free(flowmap);
 #ifndef PINNED			
-	free(logSqrt);	   
+	free(logSqrt);
+	free(facesPerPoint);
 #else
 	hipFree(logSqrt);
+	hipFree(facesPerPoint);
 #endif
 	free(nFacesPerPoint);
-	free(facesPerPoint);
 
 	return 0;
 }

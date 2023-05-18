@@ -151,14 +151,17 @@ int main(int argc, char *argv[]) {
 
 	/* Allocate additional memory at the CPU */
 	nFacesPerPoint = (int *) malloc( sizeof(int) * nPoints ); /* REMARK: nFacesPerPoint accumulates previous nFacesPerPoint */
-#ifdef PINNED
-	cudaHostAlloc( (void **) &logSqrt, sizeof(double) * nPoints,cudaHostAllocMapped);
-#else
-	logSqrt= (double*) malloc( sizeof(double) * nPoints);
-#endif
 	// Assign faces to vertices and generate nFacesPerPoint and facesPerPoint GPU vectors  
 	create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
+#ifdef PINNED
+	cudaHostAlloc( (void **) &logSqrt, sizeof(double) * nPoints, cudaHostAllocMapped);
+	cudaHostAlloc( (void **) &facesPerPoint, sizeof(int) * nFacesPerPoint[ nPoints - 1 ], cudaHostAllocMapped);
+#else
+	logSqrt= (double*) malloc( sizeof(double) * nPoints);
 	facesPerPoint = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
+#endif
+	
+	
 	int v_points[maxDevices];
 	int offsets[maxDevices];
 	int v_points_faces[maxDevices];
@@ -223,24 +226,16 @@ int main(int argc, char *argv[]) {
 		//Launch preproccesing kernel
 		cudaEventRecord(start, cudaStreamDefault);
 		/* STEP 1: compute gradient, tensors and ATxA based on neighbors flowmap values */
-		create_facesPerPoint_vector<<<grid_numCoords, block>>> (nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, d_faces, d_nFacesPerPoint, d_facesPerPoint);
+		create_facesPerPoint_vector<<<grid_numCoords, block, 0, cudaStreamDefault>>> (nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, d_faces, d_nFacesPerPoint, d_facesPerPoint);
 
 		cudaEventRecord(stop, cudaStreamDefault);
 		cudaEventSynchronize(stop);
 		cudaEventElapsedTime(preproc_times+ omp_get_thread_num() , start, stop);
 		cudaEventRecord(start, cudaStreamDefault);
-#ifndef PINNED
 		if ( nDim == 2 )
-			gpu_compute_gradient_2D <<<grid_numCoords, block>>> (v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, d_logSqrt, t_eval);
+			gpu_compute_gradient_2D <<<grid_numCoords, block, 0, cudaStreamDefault>>> (v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, d_logSqrt, t_eval);
 		else
-			gpu_compute_gradient_3D <<<grid_numCoords, block>>> (v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, d_logSqrt, t_eval);
-#else
-		if ( nDim == 2 )
-			gpu_compute_gradient_2D <<<grid_numCoords, block,0, cudaStreamDefault>>> (v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, d_logSqrt, t_eval);
-		else
-			gpu_compute_gradient_3D <<<grid_numCoords, block,0,cudaStreamDefault>>> (v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, d_logSqrt, t_eval);
-
-#endif
+			gpu_compute_gradient_3D <<<grid_numCoords, block, 0, cudaStreamDefault>>> (v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, d_logSqrt, t_eval);
 
 		cudaEventRecord(stop, cudaStreamDefault);
 		cudaEventSynchronize(stop);
@@ -248,11 +243,13 @@ int main(int argc, char *argv[]) {
 	
 #ifndef PINNED
  		cudaMemcpy (logSqrt +offsets[d],  d_logSqrt, sizeof(double) * v_points[d], cudaMemcpyDeviceToHost);
+ 		cudaMemcpy(facesPerPoint + offsets_faces[d], d_facesPerPoint,  sizeof(int) * v_points_faces[d], cudaMemcpyDeviceToHost );	
 #else
 		cudaMemcpyAsync (logSqrt + offsets[d],  d_logSqrt, sizeof(double) * v_points[d], cudaMemcpyDeviceToHost, cudaStreamDefault);
+		cudaMemcpyAsync (facesPerPoint + offsets_faces[d], d_facesPerPoint,  sizeof(int) * v_points_faces[d], cudaMemcpyDeviceToHost, cudaStreamDefault);
 		cudaDeviceSynchronize();
 #endif
-		cudaMemcpy(facesPerPoint + offsets_faces[d], d_facesPerPoint,  sizeof(int) * v_points_faces[d], cudaMemcpyDeviceToHost );	
+		
 		fflush(stdout);
 		
 		/* Free memory */
@@ -303,11 +300,12 @@ int main(int argc, char *argv[]) {
 	free(flowmap);
 #ifndef PINNED			
 	free(logSqrt);
+	free(facesPerPoint);
 #else
 	cudaFree(logSqrt);
+	cudaFree(facesPerPoint);
 #endif
 	free(nFacesPerPoint);
-	free(facesPerPoint);
 
 	return 0;
 }
