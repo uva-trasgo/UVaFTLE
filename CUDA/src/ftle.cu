@@ -173,8 +173,6 @@ int main(int argc, char *argv[]) {
 		int sup = (d != nDevices-1) ? nFacesPerPoint[offsets[d+1]-1] : nFacesPerPoint[nPoints-1];
 		v_points_faces[d] =  sup - inf;
 		offsets_faces[d] = (d != 0) ? nFacesPerPoint[offsets[d]-1]: 0;
-		printf("gpu %d,  offset %d, elements %d\n", d,offsets[d], v_points[d]);
-		printf("gpu %d,  offset_faces %d, elements_faces %d\n", d,offsets_faces[d], v_points_faces[d]);
 	}
 	
 

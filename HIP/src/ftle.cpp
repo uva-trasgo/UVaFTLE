@@ -172,8 +172,6 @@ int main(int argc, char *argv[]) {
 		int sup = (d != nDevices-1) ? nFacesPerPoint[offsets[d+1]-1] : nFacesPerPoint[nPoints-1];
 		v_points_faces[d] =  sup - inf;
 		offsets_faces[d] = (d != 0) ? nFacesPerPoint[offsets[d]-1]: 0;
-		printf("gpu %d,  offset %d, elements %d\n", d,offsets[d], v_points[d]);
-		printf("gpu %d,  offset_faces %d, elements_faces %d\n", d,offsets_faces[d], v_points_faces[d]);
 	}
 	
 
@@ -205,12 +203,12 @@ int main(int argc, char *argv[]) {
 		hipMemcpy( d_flowmap, flowmap, sizeof(double) * nPoints * nDim,			hipMemcpyHostToDevice );
 
 		/* Allocate additional memory at the GPU */
-		cudaMalloc( &d_nFacesPerPoint, sizeof(int)	* nPoints);
-		cudaMalloc( &d_logSqrt,		sizeof(double) * v_points[d]); 
+		hipMalloc( &d_nFacesPerPoint, sizeof(int)	* nPoints);
+		hipMalloc( &d_logSqrt,		sizeof(double) * v_points[d]); 
 
 		/* Copy data to GPU */
-		cudaMemcpy( d_nFacesPerPoint, nFacesPerPoint, sizeof(int) * nPoints,	hipMemcpyHostToDevice );
-		cudaMalloc( &d_facesPerPoint, sizeof(int) * v_points_faces[d]);		
+		hipMemcpy( d_nFacesPerPoint, nFacesPerPoint, sizeof(int) * nPoints,	hipMemcpyHostToDevice );
+		hipMalloc( &d_facesPerPoint, sizeof(int) * v_points_faces[d]);		
 
 		/* Create dim3 for GPU */
 		dim3 block(BLOCK);
@@ -224,7 +222,7 @@ int main(int argc, char *argv[]) {
 		//Launch preproccesing kernel
 		hipEventRecord(start, hipStreamDefault);
 		/* STEP 1: compute gradient, tensors and ATxA based on neighbors flowmap values */
-		hipLaunchKernelGGL(create_facesPerPoint_vector_GPU, grid_numCoords,block, 0, hipStreamDefault, nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, d_faces, d_nFacesPerPoint, d_facesPerPoint);
+		hipLaunchKernelGGL(create_facesPerPoint_vector, grid_numCoords,block, 0, hipStreamDefault, nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, d_faces, d_nFacesPerPoint, d_facesPerPoint);
 
 		hipEventRecord(stop, hipStreamDefault);
 		hipEventSynchronize(stop);
@@ -252,7 +250,7 @@ int main(int argc, char *argv[]) {
 		hipMemcpyAsync (logSqrt + offsets[d],  d_logSqrt, sizeof(double) * v_points[d], hipMemcpyDeviceToHost, hipStreamDefault);
 		hipDeviceSynchronize();
 #endif
-		cudaMemcpy(facesPerPoint + offsets_faces[d], d_facesPerPoint,  sizeof(int) * v_points_faces[d], cudaMemcpyDeviceToHost );	
+		hipMemcpy(facesPerPoint + offsets_faces[d], d_facesPerPoint,  sizeof(int) * v_points_faces[d], hipMemcpyDeviceToHost );	
 		fflush(stdout);
 		
 		/* Free memory */

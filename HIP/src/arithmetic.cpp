@@ -2,7 +2,7 @@
 #include "arithmetic.h"
 #include <hip/hip_runtime.h>
 
-__global__ void gpu_compute_gradient_2D ( int stride, int numCoords, int nVertsPerFace, double *coords, double *flowmap, int *faces, int *nFacesPerPoint, int *facesPerPoint, double *d_logSqrt, double T) 
+__global__ void gpu_compute_gradient_2D (int nPoints, int offset, int faces_offset, int nVertsPerFace, double *coords, double *flowmap, int *faces, int *nFacesPerPoint, int *facesPerPoint,  double *d_logSqrt, double T)
 {
 	int gpu_id = blockIdx.x*blockDim.x + threadIdx.x;
 	if (gpu_id < nPoints){
@@ -151,7 +151,7 @@ __global__ void gpu_compute_gradient_2D ( int stride, int numCoords, int nVertsP
 	}
 }
 
-__global__ void gpu_compute_gradient_3D (int nPoints, int offset, int faces_offset, int nVertsPerFace, double *coords, double *flowmap, int *faces, int *nFacesPerPoint, int *facesPerPoint, double *d_logSqrt, double T) //double *gra1, double *gra2 )
+__global__ void gpu_compute_gradient_3D (int nPoints, int offset, int faces_offset, int nVertsPerFace, double *coords, double *flowmap, int *faces, int *nFacesPerPoint, int *facesPerPoint,  double *d_logSqrt, double T)
 {
 	int gpu_id = blockIdx.x*blockDim.x + threadIdx.x;
 	if (gpu_id < nPoints){

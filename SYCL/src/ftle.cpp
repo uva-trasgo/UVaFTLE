@@ -12,6 +12,7 @@
 #include "arithmetic.h"
 #include "preprocess.h"
 
+#define maxDevices 4
 #define D1_RANGE(size) range<1>{static_cast<size_t>(size)}
 #define HIP_PLATFORM 0
 #define CUDA_PLATFORM 1
@@ -98,7 +99,7 @@ int main(int argc, char *argv[]) {
 
 	double t_eval = atof(argv[5]);
 	int check_EOF;
-	int nDevices = atoi(argv[7]), maxDevices=4;
+	int nDevices = atoi(argv[7]);
 	char buffer[255];
 	int nDim, nVertsPerFace, nPoints, nFaces;
 	FILE *file;
@@ -189,9 +190,11 @@ int main(int argc, char *argv[]) {
 	create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
 	facesPerPoint = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
 	int v_points[maxDevices] = {1,1,1,1};
-	int offsets[maxDevices]= = {0,0,0,0};
-	int v_points_faces[maxDevices]= {1,1,1,1};
-	int offsets_faces[maxDevices] = {1,1,1,1};
+	int offsets[maxDevices] =  {0,0,0,0};
+	int v_points_faces[maxDevices] = {1,1,1,1};
+	int offsets_faces[maxDevices] = {0,0,0,0};
+	//std::vector<::event> event_list(nDevices*2);
+	::event event_list[nDevices*2];
 	int gap= ((nPoints / nDevices)/BLOCK)*BLOCK;
 	for(int d=0; d < nDevices; d++){
 		v_points[d] = (d == nDevices-1) ? nPoints - gap*d : gap; 
@@ -202,8 +205,6 @@ int main(int argc, char *argv[]) {
 		int sup = (d != nDevices-1) ? nFacesPerPoint[offsets[d+1]-1] : nFacesPerPoint[nPoints-1];
 		v_points_faces[d] =  sup - inf;
 		offsets_faces[d] = (d != 0) ? nFacesPerPoint[offsets[d]-1]: 0;
-		printf("gpu %d,  offset %d, elements %d\n", d,offsets[d], v_points[d]);
-		printf("gpu %d,  offset_faces %d, elements_faces %d\n", d,offsets_faces[d], v_points_faces[d]);
 	}
 	
 	printf("\nComputing FTLE (SYCL)...");
