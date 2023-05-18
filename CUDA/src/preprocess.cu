@@ -58,13 +58,13 @@ void read_faces ( char *filename, int nDim, int nVertsPerFace, int nFaces, int *
    {
       for ( ielem = 0; ielem < nVertsPerFace; ielem++ )
       {
-         check_EOF = fscanf(file, "%s", buffer);
-         if ( check_EOF == EOF )
-         {
-            fprintf( stderr, "Error: Unexpected EOF in read_faces\n" );
-            exit(-1);
-         }
-         faces[iface * nVertsPerFace + ielem] = atoi(buffer);
+	 check_EOF = fscanf(file, "%s", buffer);
+	 if ( check_EOF == EOF )
+	 {
+	    fprintf( stderr, "Error: Unexpected EOF in read_faces\n" );
+	    exit(-1);
+	 }
+	 faces[iface * nVertsPerFace + ielem] = atoi(buffer);
       }
    }
 
@@ -85,15 +85,15 @@ void read_flowmap ( char *filename, int nDims, int nPoints, double *flowmap )
    for ( ip = 0; ip < nPoints; ip++ )
    {
       for ( idim = 0; idim < nDims; idim++ )
-          {
-                check_EOF = fscanf(file, "%s", buffer);
-                if ( check_EOF == EOF )
-                {
-                        fprintf( stderr, "Error: Unexpected EOF in read_flowmap\n" );
-                        exit(-1);
-                }
-                flowmap[ip * nDims + idim] = atof(buffer);
-          }
+	  {
+		check_EOF = fscanf(file, "%s", buffer);
+		if ( check_EOF == EOF )
+		{
+			fprintf( stderr, "Error: Unexpected EOF in read_flowmap\n" );
+			exit(-1);
+		}
+		flowmap[ip * nDims + idim] = atof(buffer);
+	  }
    }
 
    // Close file
@@ -104,7 +104,7 @@ void create_nFacesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVert
 {
 	int ip, iface, ipf;
 	for ( ip = 0; ip < nPoints; ip++ )
-        {
+	{
 		nFacesPerPoint[ip] = 0;
 	}
 	for ( iface = 0; iface < nFaces; iface++ )
@@ -116,17 +116,16 @@ void create_nFacesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVert
 		}
 	}
 	for ( ip = 1; ip < nPoints; ip++ )
-        {
-                nFacesPerPoint[ip] = nFacesPerPoint[ip] + nFacesPerPoint[ip-1];
-        }	
+	{
+		nFacesPerPoint[ip] = nFacesPerPoint[ip] + nFacesPerPoint[ip-1];
+	}	
 }
 
 __global__ void create_facesPerPoint_vector(int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, int *faces, int *nFacesPerPoint, int *facesPerPoint )
 {
-	int gpu_id = blockIdx.x*blockDim.x + threadIdx.x;
-	int th_id = gpu_id + offset;
-	
+	int gpu_id = blockIdx.x*blockDim.x + threadIdx.x;	
 	if (gpu_id < nPoints){
+		int th_id = gpu_id + offset;
 		int count, iface, ipf, nFacesP, iFacesP;
 		count = 0;
 		iFacesP = (( th_id == 0 ) ? 0 : nFacesPerPoint[th_id-1]) - faces_offset;

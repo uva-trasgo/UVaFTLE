@@ -4,8 +4,8 @@
 __global__ void gpu_compute_gradient_2D(int nPoints, int offset, int faces_offset, int nVertsPerFace, double *coords, double *flowmap, int *faces, int *nFacesPerPoint, int *facesPerPoint, double *d_logSqrt, double T) 
 {
 	int gpu_id = blockIdx.x*blockDim.x + threadIdx.x;
-	int th_id = gpu_id + offset;
 	if (gpu_id < nPoints){
+		int th_id = gpu_id + offset;
 		int nDim = 2; 
 		int iface, nFaces, idxface, ivert;
 		int closest_points_0 = -1;
@@ -153,8 +153,8 @@ __global__ void gpu_compute_gradient_2D(int nPoints, int offset, int faces_offse
 __global__ void gpu_compute_gradient_3D (int nPoints, int offset, int faces_offset, int nVertsPerFace, double *coords, double *flowmap, int *faces, int *nFacesPerPoint, int *facesPerPoint, double *d_logSqrt, double T) //double *gra1, double *gra2 )
 {
 	int gpu_id = blockIdx.x*blockDim.x + threadIdx.x;
-	int th_id = gpu_id + offset;
-	if (gpu_id < nPoints){ 
+	if (gpu_id < nPoints){
+		int th_id = gpu_id + offset;
 		int nDim = 3; 
 		int iface, nFaces, idxface, ivert;
 		int closest_points_0 = -1;

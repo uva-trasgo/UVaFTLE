@@ -72,6 +72,14 @@ int main(int argc, char *argv[]) {
 	char buffer[255];
 	int nDim, nVertsPerFace, nPoints, nFaces;
 	FILE *file;
+	int	 numThreads=0;
+	double *coords;
+	double *flowmap;
+	int	*faces;
+	double *logSqrt;
+	int	*nFacesPerPoint;
+	int	*facesPerPoint;
+
 	/* Obtain and show GPU devices information */
 	printf("\nGPU devices to be used:		 \n\n");	
 	fflush(stdout);
@@ -81,13 +89,6 @@ int main(int argc, char *argv[]) {
 	fflush(stdout);
 	float  kernel_times[maxDevices];
 	float  preproc_times[maxDevices];
-	int	 numThreads=0;
-	double *coords;
-	double *flowmap;
-	int	*faces;
-	double *logSqrt;
-	int	*nFacesPerPoint;
-	int	*facesPerPoint;
 
 	/* Initialize mesh original information */
 	nDim = atoi(argv[1]);
@@ -153,12 +154,11 @@ int main(int argc, char *argv[]) {
 #ifdef PINNED
 	cudaHostAlloc( (void **) &logSqrt, sizeof(double) * nPoints,cudaHostAllocMapped);
 #else
-	logSqrt		= (double*) malloc( sizeof(double) * nPoints);	
+	logSqrt= (double*) malloc( sizeof(double) * nPoints);
 #endif
 	// Assign faces to vertices and generate nFacesPerPoint and facesPerPoint GPU vectors  
 	create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
 	facesPerPoint = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
-	printf("n device %d, max devices %d\n", nDevices, maxDevices);
 	int v_points[maxDevices];
 	int offsets[maxDevices];
 	int v_points_faces[maxDevices];
@@ -179,24 +179,21 @@ int main(int argc, char *argv[]) {
 	
 
 #ifndef PINNED	
-	printf("\nComputing FTLE (non pinned)...");
+	printf("\nComputing FTLE (CUDA non pinned)...");
 #else
-	printf("\nComputing FTLE (pinned)...");
+	printf("\nComputing FTLE (CUDA pinned)...");
 #endif
 	struct timeval global_timer_start;
-	
 	gettimeofday(&global_timer_start, NULL);
 	#pragma omp parallel default(none)  shared(stdout, logSqrt, nDim, nPoints, nFaces, nVertsPerFace, numThreads, preproc_times, kernel_times, v_points, v_points_faces, offsets, offsets_faces, faces, coords, nFacesPerPoint, facesPerPoint, flowmap, t_eval)  
 	{
 		numThreads = omp_get_num_threads();
 		int d = omp_get_thread_num();
 		double *d_logSqrt;
-		double *d_gra1, *d_gra2, *d_gra3;
-		double *d_cg_tensor1, *d_cg_tensor2, *d_cg_tensor3;
-		double *d_coords, *d_flowmap, *d_res;
-		int	*devInfo, *d_faces, *d_nFacesPerPoint, *d_facesPerPoint;
+		double *d_coords, *d_flowmap;
+		int *d_faces, *d_nFacesPerPoint, *d_facesPerPoint;
 
-		cudaSetDevice(omp_get_thread_num());
+		cudaSetDevice(d);
 
 		/* Allocate memory for read data at the GPU (coords, faces, flowmap) */
 		cudaMalloc( &d_coords,  sizeof(double) * nPoints * nDim );
@@ -204,34 +201,24 @@ int main(int argc, char *argv[]) {
 		cudaMalloc( &d_flowmap, sizeof(double) * nPoints * nDim );
 
 		/* Copy read data to GPU (coords, faces, flowmap) */
-		cudaMemcpy( d_coords,  coords,  sizeof(double) * nPoints * nDim,		  cudaMemcpyHostToDevice );
-		cudaMemcpy( d_faces,   faces,   sizeof(int)	* nFaces  * nVertsPerFace, cudaMemcpyHostToDevice );
-		cudaMemcpy( d_flowmap, flowmap, sizeof(double) * nPoints * nDim,		  cudaMemcpyHostToDevice );
+		cudaMemcpy( d_coords,  coords,  sizeof(double) * nPoints * nDim,		cudaMemcpyHostToDevice );
+		cudaMemcpy( d_faces,   faces,   sizeof(int)	* nFaces  * nVertsPerFace,	cudaMemcpyHostToDevice );
+		cudaMemcpy( d_flowmap, flowmap, sizeof(double) * nPoints * nDim,		cudaMemcpyHostToDevice );
 
 		/* Allocate additional memory at the GPU */
 		cudaMalloc( &d_nFacesPerPoint, sizeof(int)	* nPoints);
-		cudaMalloc( &d_logSqrt,		sizeof(double) * v_points[d]);
-		cudaMalloc ((void**)&d_res, sizeof(double) * nPoints * nDim * nDim); 
-		cudaMalloc( &d_gra1, sizeof(double) * nPoints * nDim );
-		cudaMalloc( &d_gra2, sizeof(double) * nPoints * nDim );
-		if (nDim == 3) cudaMalloc( &d_gra3, sizeof(double) * nPoints * nDim );
-		cudaMalloc ((void**)&d_cg_tensor1, sizeof(double) * nPoints * nDim); 
-		cudaMalloc ((void**)&d_cg_tensor2, sizeof(double) * nPoints * nDim); 
-		if (nDim == 3) cudaMalloc ((void**)&d_cg_tensor3, sizeof(double) * nPoints * nDim);			 
-		cudaMalloc ((void**)&devInfo, sizeof(int));
+		cudaMalloc( &d_logSqrt,		sizeof(double) * v_points[d]); 
 
 		/* Copy data to GPU */
-		
-		cudaMemcpy( d_nFacesPerPoint, nFacesPerPoint, sizeof(int) * nPoints,					   cudaMemcpyHostToDevice );
+		cudaMemcpy( d_nFacesPerPoint, nFacesPerPoint, sizeof(int) * nPoints,	cudaMemcpyHostToDevice );
 		cudaMalloc( &d_facesPerPoint, sizeof(int) * v_points_faces[d]);		
 
 		/* Create dim3 for GPU */
-		
 		dim3 block(BLOCK);
 		int numBlocks = (int) (ceil((double)v_points[d]/(double)block.x)+1);
 		dim3 grid_numCoords(numBlocks+1);
 
-		//Create Hip events
+		//Create Cuda events
 		cudaEvent_t start, stop;
 		cudaEventCreate(&start);
 		cudaEventCreate(&stop);  	
@@ -277,14 +264,6 @@ int main(int argc, char *argv[]) {
 		cudaFree(d_nFacesPerPoint);
 		cudaFree(d_facesPerPoint);
 		cudaFree(d_logSqrt);
-		cudaFree(d_gra1);
-		cudaFree(d_gra2);
-		cudaFree(d_gra3);
-		cudaFree(d_res);
-		cudaFree(d_cg_tensor1);
-		cudaFree(d_cg_tensor2);
-		cudaFree(d_cg_tensor3);
-		cudaFree(devInfo);
 	}
 	struct timeval global_timer_end;
 	gettimeofday(&global_timer_end, NULL);
@@ -292,7 +271,6 @@ int main(int argc, char *argv[]) {
 	printf("DONE\n\n");
 	printf("--------------------------------------------------------\n");
 	fflush(stdout);
-
 	/* Write result in output file (if desired) */
 	if ( atoi(argv[6]) )
 	{
@@ -304,7 +282,7 @@ int main(int argc, char *argv[]) {
 		fclose(fp_w);
 		fp_w = fopen("cuda_preproc.csv", "w");
                 for ( int ii = 0; ii < nFacesPerPoint[nPoints-1]; ii++ )
-                         fprintf(fp_w, "%d\n", facesPerPoint[ii]);
+                        fprintf(fp_w, "%d\n", facesPerPoint[ii]);
                 fclose(fp_w);
 		printf("DONE\n\n");
 		printf("--------------------------------------------------------\n");
@@ -314,7 +292,7 @@ int main(int argc, char *argv[]) {
 	/* Show execution time */
 	printf("Execution times in miliseconds\n");
 	printf("Device Num;  Preproc kernel; FTLE kernel\n");
-	for(int d = 0; d <  numThreads; d++){
+	for(int d = 0; d < nDevices; d++){
 		printf("%d; %f; %f\n", d, preproc_times[d], kernel_times[d]);
 	}
 	printf("Global time: %f:\n", time);

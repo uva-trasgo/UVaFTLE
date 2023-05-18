@@ -11,8 +11,8 @@ return q->submit([&](handler &h){
 #if (defined(CUDA_DEVICE) || defined(HIP_DEVICE))		
 	int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
 	h.parallel_for<class ftle2D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
+	if(i.get_global_id(0) < nPoints){
 		int th_id = i.get_global_id(0) + offset;
-		if(i.get_global_id(0) < nPoints){
 #else
 	h.parallel_for<class ftle2D> (range<1>{static_cast<size_t>(nPoints)}, [=](id<1> i){
 		int th_id = i[0] + offset;
@@ -178,8 +178,8 @@ return q->submit([&](handler &h){
 #if defined(CUDA_DEVICE) || defined(HIP_DEVICE)		
 	int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
 	h.parallel_for<class ftle3D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
-		int th_id = i.get_global_id(0) + offset;
 		if(i.get_global_id(0) < nPoints){
+		int th_id = i.get_global_id(0) + offset;
 #else
 	h.parallel_for<class ftle2D> (range<1>{static_cast<size_t>(nPoints)}, [=](id<1> i){
 		int th_id = i[0] + offset;

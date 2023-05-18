@@ -61,13 +61,13 @@ void read_faces ( char *filename, int nDim, int nVertsPerFace, int nFaces, int *
    {
       for ( ielem = 0; ielem < nVertsPerFace; ielem++ )
       {
-         check_EOF = fscanf(file, "%s", buffer);
-         if ( check_EOF == EOF )
-         {
-            fprintf( stderr, "Error: Unexpected EOF in read_faces\n" );
-            exit(-1);
-         }
-         faces[iface * nVertsPerFace + ielem] = atoi(buffer);
+	 check_EOF = fscanf(file, "%s", buffer);
+	 if ( check_EOF == EOF )
+	 {
+	    fprintf( stderr, "Error: Unexpected EOF in read_faces\n" );
+	    exit(-1);
+	 }
+	 faces[iface * nVertsPerFace + ielem] = atoi(buffer);
       }
    }
 
@@ -88,15 +88,15 @@ void read_flowmap ( char *filename, int nDims, int nPoints, double *flowmap )
    for ( ip = 0; ip < nPoints; ip++ )
    {
       for ( idim = 0; idim < nDims; idim++ )
-          {
-                check_EOF = fscanf(file, "%s", buffer);
-                if ( check_EOF == EOF )
-                {
-                        fprintf( stderr, "Error: Unexpected EOF in read_flowmap\n" );
-                        exit(-1);
-                }
-                flowmap[ip * nDims + idim] = atof(buffer);
-          }
+	  {
+		check_EOF = fscanf(file, "%s", buffer);
+		if ( check_EOF == EOF )
+		{
+			fprintf( stderr, "Error: Unexpected EOF in read_flowmap\n" );
+			exit(-1);
+		}
+		flowmap[ip * nDims + idim] = atof(buffer);
+	  }
    }
 
    // Close file
@@ -107,7 +107,7 @@ void create_nFacesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVert
 {
 	int ip, iface, ipf;
 	for ( ip = 0; ip < nPoints; ip++ )
-        {
+	{
 		nFacesPerPoint[ip] = 0;
 	}
 	for ( iface = 0; iface < nFaces; iface++ )
@@ -119,9 +119,9 @@ void create_nFacesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVert
 		}
 	}
 	for ( ip = 1; ip < nPoints; ip++ )
-        {
-                nFacesPerPoint[ip] = nFacesPerPoint[ip] + nFacesPerPoint[ip-1];
-        }	
+	{
+		nFacesPerPoint[ip] = nFacesPerPoint[ip] + nFacesPerPoint[ip-1];
+	}	
 }
 
 cl::sycl::event create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, cl::sycl::buffer<int, 1> *b_faces, cl::sycl::buffer<int, 1> *b_nFacesPerPoint, cl::sycl::buffer<int, 1> *b_facesPerPoint)
@@ -134,8 +134,8 @@ return q->submit([&](handler &h){
 #if defined(CUDA_DEVICE) || defined(HIP_DEVICE)		
 	int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
 	h.parallel_for<class preprocess> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
-	int th_id = i.get_global_id(0) + offset;
 	if(i.get_global_id(0) < nPoints){
+		int th_id = i.get_global_id(0) + offset;
 #else
 	h.parallel_for<class preprocess> (range<1>{static_cast<size_t>(nPoints)}, [=](id<1> i){{
 	int th_id = i[0] + offset;
