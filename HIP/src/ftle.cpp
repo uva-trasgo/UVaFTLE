@@ -246,7 +246,7 @@ int main(int argc, char *argv[]) {
 		hipMemcpy(facesPerPoint + offsets_faces[d], d_facesPerPoint,  sizeof(int) * v_points_faces[d], hipMemcpyDeviceToHost );	
 #else
 		hipMemcpyAsync (logSqrt + offsets[d],  d_logSqrt, sizeof(double) * v_points[d], hipMemcpyDeviceToHost, hipStreamDefault);
-		hipMemcpyAsync (facesPerPoint + offsets_faces[d], d_facesPerPoint,  sizeof(int) * v_points_faces[d],  hipStreamDefault);
+		hipMemcpyAsync (facesPerPoint + offsets_faces[d], d_facesPerPoint,  sizeof(int) * v_points_faces[d], hipMemcpyDeviceToHost, hipStreamDefault);
 		hipDeviceSynchronize();
 #endif
 		
