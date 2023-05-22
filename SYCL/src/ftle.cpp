@@ -1,16 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
+#include <sys/time.h>
+#include <time.h>
+
 #include <vector>
 #include <iostream>
 #include <CL/sycl.hpp>
-#include <sys/time.h>
-#include <time.h>
+#include <assert.h>
+
 #include "ftle.h"
 #include "arithmetic.h"
 #include "preprocess.h"
 
-#define blockSize 512
+#define maxDevices 4
 #define D1_RANGE(size) range<1>{static_cast<size_t>(size)}
 #define HIP_PLATFORM 0
 #define CUDA_PLATFORM 1
@@ -24,7 +26,8 @@ float getKernelExecutionTime(::event event){
  	auto end_time = event.get_profiling_info<cl::sycl::info::event_profiling::command_end>();
  	return (end_time - start_time) / 1000000.0f;
 }
-std::vector<queue> get_queues_from_platform(int plat, int nGpus){
+
+std::vector<queue> get_queues_from_platform(int plat, int nDevices){
 	auto property_list =::property_list{::property::queue::enable_profiling()};
 	if(plat == OMP_PLATFORM)
 	{
@@ -34,14 +37,14 @@ std::vector<queue> get_queues_from_platform(int plat, int nGpus){
 	}
 	if(plat == ALL_GPUS_PLATFORM){
 		auto devs = device::get_devices(info::device_type::gpu);
-		std::vector<queue> queues(nGpus);
-		if(devs.size() < nGpus){
-			 printf("ERROR: Requested %d GPUs, but only %d GPU available in the system. Aborting program...\n",nGpus,(int) devs.size());
+		std::vector<queue> queues(nDevices);
+		if(devs.size() < nDevices){
+			 printf("ERROR: Requested %d GPUs, but only %d GPU available in the system. Aborting program...\n",nDevices,(int) devs.size());
 			 exit(1);
 		}
-		for (int d=0; d< nGpus; d++){
-			printf("Dispositivo %d: %s\n", d, devs[nGpus - 1 -d ].get_info<info::device::name>().c_str());
-			queues[d] = queue(devs[nGpus - 1 -d ], property_list);
+		for (int d=0; d< nDevices; d++){
+			printf("Dispositivo %d: %s\n", d, devs[nDevices - 1 -d ].get_info<info::device::name>().c_str());
+			queues[d] = queue(devs[nDevices - 1 -d ], property_list);
 		}
 		return queues;
 	}
@@ -51,12 +54,12 @@ std::vector<queue> get_queues_from_platform(int plat, int nGpus){
 	for (int p=0; p < platform.size(); p++){
 		if(!platform[p].get_info<info::platform::name>().compare(check)){
 			auto devs= platform[p].get_devices();
-			if(devs.size() < nGpus){
-			 	printf("ERROR: Requested %d GPUs, but only %d GPU available in the system. Aborting program...\n",nGpus,(int) devs.size());
+			if(devs.size() < nDevices){
+			 	printf("ERROR: Requested %d GPUs, but only %d GPU available in the system. Aborting program...\n",nDevices,(int) devs.size());
 			 	exit(1);
 			}
-			std::vector<queue> queues(nGpus);
-			for (int d=0; d< nGpus; d++){
+			std::vector<queue> queues(nDevices);
+			for (int d=0; d< nDevices; d++){
 				printf("Dispositivo %d: %s\n", d, devs[d].get_info<info::device::name>().c_str());
 				printf("Dispositivo %d: %s\n", d, devs[d].get_info<info::device::name>().c_str());
 				queues[d] = queue(devs[d], property_list);
@@ -66,7 +69,6 @@ std::vector<queue> get_queues_from_platform(int plat, int nGpus){
 	}
 	return std::vector<queue>();
 }
-
 
 int main(int argc, char *argv[]) {
 
@@ -82,47 +84,54 @@ int main(int argc, char *argv[]) {
 	fflush(stdout);
 
 	// Check usage
-	if (argc != 7 && argc != 8)
+	if (argc != 8)
 	{
-		printf("USAGE: %s <nDim> <coords_file> <faces_file> <flowmap_file> <t_eval> <print2file>\n", argv[0]);
-		printf("\texecutable:    compute_ftle\n");
+		printf("USAGE: %s <nDim> <coords_file> <faces_file> <flowmap_file> <t_eval> <print2file> <nDevices>\n", argv[0]);
 		printf("\tnDim:    dimensions of the space (2D/3D)\n");
 		printf("\tcoords_file:   file where mesh coordinates are stored.\n");
 		printf("\tfaces_file:    file where mesh faces are stored.\n");
 		printf("\tflowmap_file:  file where flowmap values are stored.\n");
 		printf("\tt_eval:        time when compute ftle is desired.\n");
-		//printf("\tnth:           number of OpenMP threads to use.\n");
 		printf("\tprint to file? (0-NO, 1-YES)\n");
-		printf("\tNumber of GPUs [optional, only used for HIP and CUDA backends. Default: 1]\n");
+                printf("\tnDevices:       number of GPUs\n");
 		return 1;
 	}
 
 	double t_eval = atof(argv[5]);
 	int check_EOF;
+	int nDevices = atoi(argv[7]);
 	char buffer[255];
-
 	int nDim, nVertsPerFace, nPoints, nFaces;
-
-	double *coords, *flowmap;
-	int    *faces;
-	int    *nFacesPerPoint;
-
-	int    *facesPerPoint;	
-	double *w;
+	FILE *file;
+	double *coords;
+	double *flowmap;
+	int	*faces;
 	double *logSqrt;
-	struct timeval start;
-	struct timeval end;
-	struct timeval preprocess;
-	double time;
+	int	*nFacesPerPoint;
+	int	*facesPerPoint;
+
+	/*Generate SYCL queues*/
+#ifdef 	HIP_DEVICE
+	auto queues = get_queues_from_platform(HIP_PLATFORM, nDevices);
+#elif 	defined CUDA_DEVICE
+	auto queues = get_queues_from_platform(CUDA_PLATFORM, nDevices);
+#elif 	defined GPU_ALL
+	auto queues = get_queues_from_platform(ALL_GPUS_PLATFORM, nDevices);
+#else
+	nDevices = 1;
+	auto queues = get_queues_from_platform(OMP_PLATFORM, nDevices);
+#endif
+	for(int d =0; d < nDevices; d++)
+		printf("Kernel device %d: %s\n", d, queues[d].get_device().get_info<info::device::name>().c_str());  
 
 	/* Initialize mesh original information */
 	nDim = atoi(argv[1]);
-	if ( nDim == 2 ) nVertsPerFace = 3;    // 2D: faces are triangles
+	if ( nDim == 2 ) nVertsPerFace = 3; // 2D: faces are triangles
 	else {
 		if ( nDim == 3) nVertsPerFace = 4; // 3D: faces (volumes) are tetrahedrons
-		else 
+		else
 		{
-			printf("Wrong dimension provided (2 or 3 supported)\n"); 
+			printf("Wrong dimension provided (2 or 3 supported)\n");
 			return 1;
 		}
 	}
@@ -131,9 +140,9 @@ int main(int argc, char *argv[]) {
 	/* Read coordinates information */
 	printf("\nReading input data\n\n"); 
 	fflush(stdout);
-	printf("\tReading mesh points coordinates...        "); 
+	printf("\tReading mesh points coordinates...		"); 
 	fflush(stdout);
-	FILE *file = fopen( argv[2], "r" );
+	file = fopen( argv[2], "r" );
 	check_EOF = fscanf(file, "%s", buffer);
 	if ( check_EOF == EOF )
 	{
@@ -149,7 +158,7 @@ int main(int argc, char *argv[]) {
 	fflush(stdout);
 
 	/* Read faces information */
-	printf("\tReading mesh faces vertices...            "); 
+	printf("\tReading mesh faces vertices...			"); 
 	fflush(stdout);
 	file = fopen( argv[3], "r" );
 	check_EOF = fscanf(file, "%s", buffer);
@@ -166,75 +175,43 @@ int main(int argc, char *argv[]) {
 	fflush(stdout);
 
 	/* Read flowmap information */
-	printf("\tReading mesh flowmap (x, y[, z])...       "); 
+	printf("\tReading mesh flowmap (x, y[, z])...	   "); 
 	fflush(stdout);
 	flowmap = (double*) malloc( sizeof(double) * nPoints * nDim ); 
 	read_flowmap ( argv[4], nDim, nPoints, flowmap );
 	printf("DONE\n\n"); 
+	printf("--------------------------------------------------------\n"); 
 	fflush(stdout);
 
-	/* Allocate additional memory at the CPU */   
+	/* Allocate additional memory at the CPU */
 	nFacesPerPoint = (int *) malloc( sizeof(int) * nPoints ); /* REMARK: nFacesPerPoint accumulates previous nFacesPerPoint */
-    logSqrt        = (double*) malloc( sizeof(double) * nPoints);   
-     /* Assign faces to vertices and generate nFacesPerPoint and facesPerPoint GPU vectors */
-     create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
+	// Assign faces to vertices and generate nFacesPerPoint and facesPerPoint GPU vectors  
+	create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
+	logSqrt= (double*) malloc( sizeof(double) * nPoints);
 	facesPerPoint = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
-	/* Solve FTLE */
-	fflush(stdout);
-
-	/*Generate SYCL queues*/
-	int maxGpus = 4;
-#ifdef HIP_DEVICE
-	int nGpus = (argc==8) ?  atoi(argv[7]) : 1;
-	auto queues = get_queues_from_platform(HIP_PLATFORM, nGpus);
-#elif defined CUDA_DEVICE
-	int nGpus = (argc==8) ?  atoi(argv[7]) : 1;
-	auto queues = get_queues_from_platform(CUDA_PLATFORM, nGpus);
-#elif defined GPU_ALL
-	int nGpus = (argc==8) ?  atoi(argv[7]) : 1;
-	auto queues = get_queues_from_platform(ALL_GPUS_PLATFORM, nGpus);
-#else
-	int nGpus = 1;
-	auto queues = get_queues_from_platform(OMP_PLATFORM, nGpus);
-#endif
-
-	std::vector<int> v_points(maxGpus);
-	std::vector<int> offsets(maxGpus);
-	std::vector<int> v_points_faces(maxGpus);
-	std::vector<int> offsets_faces(maxGpus);
-	std::vector<::event> event_list(nGpus*2);
-	int gap= ((nPoints / nGpus)/BLOCK)*BLOCK;
-	for(int d=0; d < maxGpus; d++){
-		if(d < nGpus){
-			v_points[d] = (d == nGpus-1) ? nPoints - gap*d : gap; 
-			offsets[d] = gap*d;
-		}
-		else{
-			v_points[d] = 1; 
-			offsets[d] = 0;
-		}
+	int v_points[maxDevices] = {1,1,1,1};
+	int offsets[maxDevices] =  {0,0,0,0};
+	int v_points_faces[maxDevices] = {1,1,1,1};
+	int offsets_faces[maxDevices] = {0,0,0,0};
+	//std::vector<::event> event_list(nDevices*2);
+	::event event_list[nDevices*2];
+	int gap= ((nPoints / nDevices)/BLOCK)*BLOCK;
+	for(int d=0; d < nDevices; d++){
+		v_points[d] = (d == nDevices-1) ? nPoints - gap*d : gap; 
+		offsets[d] = gap*d;
 	}
-	for(int d=0; d < maxGpus; d++){
-		if(d < nGpus){
-			int inf = (d != 0) ? nFacesPerPoint[offsets[d]-1] : 0;
-			int sup = (d != nGpus-1) ? nFacesPerPoint[offsets[d+1]-1] :nFacesPerPoint[nPoints-1];
-			v_points_faces[d] =  sup - inf;
-			offsets_faces[d] = (d != 0) ? nFacesPerPoint[offsets[d]-1]: 0;
-		}
-		else{
-			v_points_faces[d] = 1; 
-			offsets_faces[d] =  0;
-		}
-		printf("gpu %d,  offset %d, elements %d\n", d,offsets[d], v_points[d]);
-		printf("gpu %d,  offset_faces %d, elements_faces %d\n", d,offsets_faces[d], v_points_faces[d]);
+	for(int d=0; d < nDevices; d++){
+		int inf = (d != 0) ? nFacesPerPoint[offsets[d]-1] : 0;
+		int sup = (d != nDevices-1) ? nFacesPerPoint[offsets[d+1]-1] : nFacesPerPoint[nPoints-1];
+		v_points_faces[d] =  sup - inf;
+		offsets_faces[d] = (d != 0) ? nFacesPerPoint[offsets[d]-1]: 0;
 	}
 	
-	for(int d =0; d < nGpus; d++)
-		printf("Kernel device %d: %s\n", d, queues[d].get_device().get_info<info::device::name>().c_str());  
+	printf("\nComputing FTLE (SYCL)...");
+	struct timeval global_timer_start;
+	gettimeofday(&global_timer_start, NULL);
 
-	printf("\nComputing FTLE (SYCL)...                     ");
-	gettimeofday(&start, NULL);
-	{  
+	{
 		/*Creating SYCL BUFFERS*/
 		::buffer<double, 1> b_coords(coords, D1_RANGE(nPoints * nDim)); 
 		::buffer<int, 1> b_faces(faces, D1_RANGE(nFaces * nVertsPerFace)); 
@@ -249,66 +226,60 @@ int main(int argc, char *argv[]) {
 		::buffer<double, 1> b_logSqrt2(logSqrt + offsets[2], D1_RANGE(v_points[2]));
 		::buffer<double, 1> b_logSqrt3(logSqrt + offsets[3], D1_RANGE(v_points[3]));	
 		
-        	/*First Kernel for preprocessing */
-   	
-		for(int d=0; d < nGpus; d++){
+		/* STEP 1: compute gradient, tensors and ATxA based on neighbors flowmap values */
+		for(int d=0; d < nDevices; d++){
 			event_list[d] = create_facesPerPoint_vector(&queues[d], nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, &b_faces, &b_nFacesPerPoint,
 			(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))));
+
+			if ( nDim == 2 )
+				event_list[nDevices + d] = compute_gradient_2D ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint,(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))),(d==0 ? &b_logSqrt0 : (d==1 ? &b_logSqrt1 : (d==2 ? &b_logSqrt2 : &b_logSqrt3))), t_eval);
+		  	else
+				event_list[nDevices + d] = compute_gradient_3D  ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint,(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))), (d==0 ? &b_logSqrt0 : (d==1 ? &b_logSqrt1 : (d==2 ? &b_logSqrt2 : &b_logSqrt3))), t_eval);
+		   	
 		}
-		
-        /* Compute gradient, tensors and ATxA based on neighbors flowmap values, then get the max eigenvalue */
-       	for(int d=0; d < nGpus; d++){
-			if ( nDim == 2 ){
-				event_list[nGpus + d] = 	compute_gradient_2D ( &queues[d], v_points[d], offsets[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint,
-				 	(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))), 
-					(d==0 ? &b_logSqrt0 : (d==1 ? &b_logSqrt1 : (d==2 ? &b_logSqrt2 : &b_logSqrt3))), t_eval);
-		  	}else{
-				event_list[nGpus + d] = compute_gradient_3D  ( &queues[d], v_points[d], offsets[d],  nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, 
-					(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))), 
-					(d==0 ? &b_logSqrt0 : (d==1 ? &b_logSqrt1 : (d==2 ? &b_logSqrt2 : &b_logSqrt3))), t_eval);
-		   	}
-		}	  	
 	}
-	gettimeofday(&end, NULL);   
-	/* Time */
+	struct timeval global_timer_end;
+	gettimeofday(&global_timer_end, NULL);
+	double time = (global_timer_end.tv_sec - global_timer_start.tv_sec) + (global_timer_end.tv_usec - global_timer_start.tv_usec)/1000000.0;
 	printf("DONE\n\n");
 	printf("--------------------------------------------------------\n");
 	fflush(stdout);
-
-	/* Print numerical results */
+	/* Write result in output file (if desired) */
 	if ( atoi(argv[6]) )
 	{
-		printf("\nWriting result in output file...                  ");
+		printf("\nWriting result in output file...				  ");
 		fflush(stdout);
 		FILE *fp_w = fopen("sycl_result.csv", "w");
 		for ( int ii = 0; ii < nPoints; ii++ )
-		{
 			fprintf(fp_w, "%f\n", logSqrt[ii]);
-		}
 		fclose(fp_w);
+		fp_w = fopen("sycl_preproc.csv", "w");
+                for ( int ii = 0; ii < nFacesPerPoint[nPoints-1]; ii++ )
+                        fprintf(fp_w, "%d\n", facesPerPoint[ii]);
+                fclose(fp_w);
 		printf("DONE\n\n");
 		printf("--------------------------------------------------------\n");
 		fflush(stdout);
 	}
-	//auto start_time = event.get_profiling_info<::info::event_profiling::command_start>();
- 	//auto end_time = event.get_profiling_info<cl::sycl::info::event_profiling::command_end>();
- 	//return (end_time - start_time) / 1000000.0f;
-	/* Show execution time */   
+
+	/* Show execution time */
 	printf("Execution times in miliseconds\n");
 	printf("Device Num;  Preproc kernel; FTLE kernel\n");
-	for(int d = 0; d < nGpus; d++){
-		printf("%d; %f; %f\n", d, getKernelExecutionTime(event_list[d]), getKernelExecutionTime(event_list[nGpus + d]));
+	for(int d = 0; d < nDevices; d++){
+		printf("%d; %f; %f\n", d, getKernelExecutionTime(event_list[d]), getKernelExecutionTime(event_list[nDevices + d]));
 	}
+	printf("Global time: %f:\n", time);
 	printf("--------------------------------------------------------\n");
 	fflush(stdout);
-	time = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec)/1000000.0;
-	printf("\nExecution time (seconds): %f\n",  time);
+	
 	/* Free memory */
 	free(coords);
-	free(flowmap);
 	free(faces);
-	free(nFacesPerPoint);
-	free(facesPerPoint);
+	free(flowmap);
 	free(logSqrt);
+	free(facesPerPoint);
+	free(nFacesPerPoint);
+
+
 	return 0;
 }
