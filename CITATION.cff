@@ -1,0 +1,45 @@
+cff-version: 1.2.0
+message: "If you write a scientific paper describing research that makes substantive use of UVaFTLE , we would appreciate that you cite the following paper:"
+authors:
+- given-names: 'Rocío'
+  family-names: 'Carratalá-Sáez'
+  orcid: 'https://orcid.org/0000-0001-8409-2421'
+- given-names: 'Yuri'
+  family-names: 'Torres'
+  orcid: 'https://orcid.org/0000-0002-3037-3567'
+- given-names: 'José'
+  family-names: 'Sierra-Pallares'
+  orcid: 'https://orcid.org/0000-0003-1565-9337'
+- given-names: 'Sergio'
+  family-names: 'López-Huguet'
+  orcid: 'https://orcid.org/0000-0002-6523-6108'
+- given-names: 'Diego R.'
+  family-names: 'Llanos'
+  orcid: 'https://orcid.org/0000-0001-6240-9109'
+title: "UVaFTLE: Lagrangian finite time Lyapunov exponent extraction for fluid dynamic applications"
+date-released: 2017-12-18
+url: 'https://github.com/uva-trasgo/UVaFTLE'
+preferred-citation:
+  type: article
+  authors:
+  - given-names: 'Rocío'
+    family-names: 'Carratalá-Sáez'
+    orcid: 'https://orcid.org/0000-0001-8409-2421'
+  - given-names: 'Yuri'
+    family-names: 'Torres'
+    orcid: 'https://orcid.org/0000-0002-3037-3567'
+  - given-names: 'José'
+    family-names: 'Sierra-Pallares'
+    orcid: 'https://orcid.org/0000-0003-1565-9337'
+  - given-names: 'Sergio'
+    family-names: 'López-Huguet'
+    orcid: 'https://orcid.org/0000-0002-6523-6108'
+  - given-names: 'Diego R.'
+    family-names: 'Llanos'
+    orcid: 'https://orcid.org/0000-0001-6240-9109'
+  doi: '10.1007/s11227-022-05017-x'
+  journal: "The Journal of Supercomputing"
+  month: 1
+  title: "UVaFTLE: Lagrangian finite time Lyapunov exponent extraction for fluid dynamic applications"
+  year: 2023
+  issn: "1573-0484"
