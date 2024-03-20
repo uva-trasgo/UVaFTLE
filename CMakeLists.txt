@@ -28,9 +28,9 @@ endif()
 include(CheckLanguage)
 check_language(CUDA)
 
-if(NOT CMAKE_CUDA_COMPILER)
-	message(FATAL_ERROR "Can't find CUDA")
-endif()
+#if(NOT CMAKE_CUDA_COMPILER)
+#	message(FATAL_ERROR "Can't find CUDA")
+#endif()
 
 find_package(OpenMP)
 
@@ -58,7 +58,7 @@ SET(OMP_FLAGS "-fopenmp")
 SET(CPU_AND_CUDA_DIR "CPU/src")
 SET(CPU_AND_CUDA_SRC ${CPU_AND_CUDA_DIR}/ftle.c ${CPU_AND_CUDA_DIR}/preprocess.c ${CPU_AND_CUDA_DIR}/arithmetic.c )
 SET(CPU_AND_CUDA_FLAGS "${CFLAGS} ${OMP_FLAGS} -x cuda --cuda-gpu-arch=sm_70 -I./CPU/include -I${CUDA_PATH}/include -march=native")
-SET(CUDA_LINK_FLAGS "-L${CUDA_PATH}/lib64") 
+SET(CUDA_LINK_FLAGS "-L${CUDA_PATH}/lib64 -fopenmp") 
 
 #CPU versions with GPU for Preprocessing
 ADD_EXECUTABLE(ftle_static  ${CPU_AND_CUDA_SRC})
@@ -68,13 +68,14 @@ ADD_EXECUTABLE(ftle_guided  ${CPU_AND_CUDA_SRC})
 SET_TARGET_PROPERTIES(ftle_static PROPERTIES COMPILE_FLAGS ${CPU_AND_CUDA_FLAGS})
 SET_TARGET_PROPERTIES(ftle_dynamic PROPERTIES COMPILE_FLAGS "${CPU_AND_CUDA_FLAGS} -DDYNAMIC")
 SET_TARGET_PROPERTIES(ftle_guided  PROPERTIES COMPILE_FLAGS "${CPU_AND_CUDA_FLAGS} -DGUIDED")
-SET_TARGET_PROPERTIES(ftle_guided ftle_dynamic ftle_static  PROPERTIES LINK_FLAGS ${CUDA_LINK_FLAGS})
+SET_TARGET_PROPERTIES(ftle_guided ftle_dynamic ftle_static  PROPERTIES LINK_FLAGS "${CUDA_LINK_FLAGS}")
 
 
 
-TARGET_LINK_LIBRARIES(ftle_static  m OpenMP::OpenMP_C cudart_static rt dl stdc++)
-TARGET_LINK_LIBRARIES(ftle_dynamic m OpenMP::OpenMP_C cudart_static rt dl stdc++)
-TARGET_LINK_LIBRARIES(ftle_guided  m OpenMP::OpenMP_C cudart_static rt dl stdc++)
+TARGET_LINK_LIBRARIES(ftle_static  m  cudart_static rt dl stdc++)
+TARGET_LINK_LIBRARIES(ftle_dynamic m  cudart_static rt dl stdc++)
+TARGET_LINK_LIBRARIES(ftle_guided  m  cudart_static rt dl stdc++)
+
 
 #CPU ALONE versions 
 SET(CPU_DIR "CPU-alone/src")
@@ -94,9 +95,11 @@ IF(CUDA_ARCH)
 ENDIF()
 
 
-TARGET_LINK_LIBRARIES(ftle_static_alone  m OpenMP::OpenMP_C)
-TARGET_LINK_LIBRARIES(ftle_dynamic_alone m OpenMP::OpenMP_C)
-TARGET_LINK_LIBRARIES(ftle_guided_alone  m OpenMP::OpenMP_C)
+TARGET_LINK_LIBRARIES(ftle_static_alone  m)
+TARGET_LINK_LIBRARIES(ftle_dynamic_alone m)
+TARGET_LINK_LIBRARIES(ftle_guided_alone  m)
+SET_TARGET_PROPERTIES(ftle_guided_alone ftle_dynamic_alone ftle_static_alone  PROPERTIES LINK_FLAGS "-fopenmp")
+
 
 
 #CUDA VERSIONS
@@ -110,7 +113,8 @@ ADD_EXECUTABLE(ftle_cuda_pin ${CUDA_SRC})
 SET_TARGET_PROPERTIES(ftle_cuda  PROPERTIES COMPILE_FLAGS ${CUDA_FLAGS})
 SET_TARGET_PROPERTIES(ftle_cuda_pin  PROPERTIES COMPILE_FLAGS "${CUDA_FLAGS} -DPINNED")
 
-SET_TARGET_PROPERTIES(ftle_guided ftle_dynamic ftle_static ftle_cuda ftle_cuda_pin  PROPERTIES LINK_FLAGS ${CUDA_LINK_FLAGS})
+SET_TARGET_PROPERTIES(ftle_cuda ftle_cuda_pin  PROPERTIES LINK_FLAGS ${CUDA_LINK_FLAGS})
+
 IF(CUDA_ARCH)
 	SET_TARGET_PROPERTIES(ftle_cuda  PROPERTIES CUDA_ARCHITECTURES ${CUDA_ARCH})
 	SET_TARGET_PROPERTIES(ftle_cuda_pin  PROPERTIES CUDA_ARCHITECTURES ${CUDA_ARCH})
@@ -127,12 +131,12 @@ ENDIF()
 
 SET(HIP_DIR "HIP/src")
 SET(HIP_SRC ${HIP_DIR}/ftle.c  ${HIP_DIR}/preprocess.c ${HIP_DIR}/arithmetic.c)
-SET(HIP_FLAGS "${CFLAGS} ${OMP_FLAGS} -I./HIP/include -x hip --offload-arch=gfx900 -Xclang -mlink-bitcode-file -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc")
+SET(HIP_FLAGS "${CFLAGS} ${OMP_FLAGS} -I./HIP/include -x hip --offload-arch=gfx900")
 
 
 ADD_EXECUTABLE(ftle_hip ${HIP_SRC})
 ADD_EXECUTABLE(ftle_hip_pin ${HIP_SRC})
-SET(HIP_LINK_FLAGS "-L${ROCM_DIR}/lib ")
+SET(HIP_LINK_FLAGS "-L${ROCM_DIR}/lib -fopenmp")
 
 SET_TARGET_PROPERTIES(ftle_hip ftle_hip_pin  PROPERTIES COMPILE_FLAGS ${HIP_FLAGS}) 
 SET_TARGET_PROPERTIES(ftle_hip_pin  PROPERTIES COMPILE_FLAGS "${HIP_FLAGS} -DPINNED")
@@ -150,13 +154,13 @@ INSTALL(TARGETS ftle_guided_alone ftle_dynamic_alone ftle_static_alone ftle_hip 
 # SYCL Implementation
 
 IF(WITH_SYCL_CPU STREQUAL "yes"  OR WITH_SYCL_CUDA STREQUAL "yes" OR WITH_SYCL_ROCM STREQUAL "yes")
-	SET(OPENSYCL_DIR "/home/trasgo/local/openSYCL")
-	find_program(SYCL_CC "syclcc")
+	SET(OPENSYCL_DIR "/home/trasgo/local/AdaptiveCPP")
+	find_program(SYCL_CC "acpp")
 	IF(NOT SYCL_CC)
 		message(FATAL_ERROR "sycl compiler not found")
 	ENDIF()
-	set (CMAKE_CXX_COMPILER "${OPENSYCL_DIR}/bin/syclcc")
-	set (CMAKE_CXX_LINKER "${OPENSYCL_DIR}/bin/syclcc")
+	set (CMAKE_CXX_COMPILER "${OPENSYCL_DIR}/bin/acpp")
+	set (CMAKE_CXX_LINKER "${OPENSYCL_DIR}/bin/acpp")
 	
 
 	#NOTE FOR USERS: manually specify this vars editing CMakeLists.txt or
@@ -175,8 +179,8 @@ IF(WITH_SYCL_CPU STREQUAL "yes"  OR WITH_SYCL_CUDA STREQUAL "yes" OR WITH_SYCL_R
 		${SYCL_SRCDIR}/arithmetic.cpp ${SYCL_SRCDIR}/ftle.cpp)
 
 	IF(WITH_SYCL_CPU STREQUAL "yes")
-                SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include -march=native --hipsycl-targets='omp' --hipsycl-cpu-cxx=/home/trasgo/local/llvm14/bin/clang++ -DBLOCK=512")
-                SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib --hipsycl-targets='omp' --hipsycl-cpu-cxx=/home/trasgo/local/llvm14/bin/clang++ -lstdc++ -L${BOOST_DIR}/lib  -lm")
+                SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include -march=native --acpp-targets='omp'  -DBLOCK=512")
+                SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib --acpp-targets='omp'  -lstdc++ -L${BOOST_DIR}/lib  -lm")
                 ADD_EXECUTABLE(ftle_sycl_cpu  ${SYCL_SRC})
                 SET_TARGET_PROPERTIES(ftle_sycl_cpu  PROPERTIES COMPILE_FLAGS  ${SYCL_COMPILE_FLAGS})
                 SET_TARGET_PROPERTIES(ftle_sycl_cpu  PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
@@ -187,8 +191,8 @@ IF(WITH_SYCL_CPU STREQUAL "yes"  OR WITH_SYCL_CUDA STREQUAL "yes" OR WITH_SYCL_R
 	SET (ARCH "sm_70" )
 	IF(WITH_SYCL_CUDA STREQUAL "yes")
 		#TODO configurar arquitectura en CmakeLIST
-		SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include --hipsycl-targets=cuda:sm_70 -DCUDA_DEVICE -DBLOCK=512")
-		SET(SYCL_LINK_FLAGS " -L${BOOST_DIR}/lib --hipsycl-targets=cuda:sm_70")
+		SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include --acpp-targets='cuda:sm_70' -DCUDA_DEVICE -DBLOCK=512")
+		SET(SYCL_LINK_FLAGS " -L${BOOST_DIR}/lib --acpp-targets='cuda:sm_70'")
 		ADD_EXECUTABLE(ftle_sycl_cuda  ${SYCL_SRC})
 		SET_TARGET_PROPERTIES(ftle_sycl_cuda  PROPERTIES COMPILE_FLAGS 	${SYCL_COMPILE_FLAGS})
 		SET_TARGET_PROPERTIES(ftle_sycl_cuda  PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
@@ -197,7 +201,7 @@ IF(WITH_SYCL_CPU STREQUAL "yes"  OR WITH_SYCL_CUDA STREQUAL "yes" OR WITH_SYCL_R
 	
 	IF(WITH_SYCL_ROCM STREQUAL "yes")
 		#TODO configurar arquitectura en CmakeLIST
-		SET(ROCM_COMMON_FLAGS "--rocm-path=${ROCM_DIR} --hipsycl-targets=hip:gfx900 -I${ROCM_DIR}/hip/include/hip/ -DHIP_DEVICE -Xclang -mlink-bitcode-file -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc -DBLOCK=512")
+		SET(ROCM_COMMON_FLAGS "--rocm-path=${ROCM_DIR} --acpp-targets='hip:gfx900' -I${ROCM_DIR}/hip/include/hip/ -DHIP_DEVICE  -DBLOCK=512")
 		SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include ${ROCM_COMMON_FLAGS}")
 		SET(SYCL_LINK_FLAGS "-lstdc++ -L${ROCM_DIR}/lib -L${ROCM_DIR}/lib64 -L${BOOST_DIR}/lib ${ROCM_COMMON_FLAGS} -lm")
 		ADD_EXECUTABLE(ftle_sycl_rocm  ${SYCL_SRC})
@@ -207,12 +211,20 @@ IF(WITH_SYCL_CPU STREQUAL "yes"  OR WITH_SYCL_CUDA STREQUAL "yes" OR WITH_SYCL_R
 	ENDIF()
 	
 	IF(WITH_SYCL_CUDA STREQUAL "yes" AND WITH_SYCL_ROCM STREQUAL "yes")
-           SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include -DGPU_ALL --hipsycl-explicit-multipass --hipsycl-targets='hip:gfx900\;cuda:sm_70' --hipsycl-cpu-cxx=/home/trasgo/local/llvm14/bin/clang++ --rocm-path=${ROCM_DIR} -I${ROCM_DIR}/hip/include/ -Xclang -mlink-bitcode-file -Xclang /opt/rocm/amdgcn/bitcode/oclc_abi_version_400.bc -DBLOCK=512")
-           SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib --hipsycl-explicit-multipass --hipsycl-targets='hip:gfx900\;cuda:sm_70' --hipsycl-cpu-cxx=/home/trasgo/local/llvm14/bin/clang++ -lstdc++ -L${ROCM_DIR}/lib -L${ROCM_DIR}/lib64 -L${BOOST_DIR}/lib ${ROCM_COMMON_FLAGS} -lm")
+           SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include -DGPU_ALL --acpp-targets='hip:gfx900\;cuda:sm_70'  -I${ROCM_DIR}/hip/include/  -DBLOCK=512")
+           SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib  --acpp-targets='hip:gfx900\;cuda:sm_70' -L${ROCM_DIR}/lib -L${ROCM_DIR}/lib64 -L${BOOST_DIR}/lib ${ROCM_COMMON_FLAGS} -lm")
            ADD_EXECUTABLE(ftle_sycl_gpu  ${SYCL_SRC})
            SET_TARGET_PROPERTIES(ftle_sycl_gpu  PROPERTIES COMPILE_FLAGS  ${SYCL_COMPILE_FLAGS})
            SET_TARGET_PROPERTIES(ftle_sycl_gpu  PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
            INSTALL(TARGETS ftle_sycl_gpu RUNTIME DESTINATION bin)
+
+           SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include -DGPU_ALL --acpp-targets='generic'  -I${ROCM_DIR}/hip/include/ -DBLOCK=512")
+           SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib --acpp-targets='generic'")
+           ADD_EXECUTABLE(ftle_sycl_generic  ${SYCL_SRC})
+           SET_TARGET_PROPERTIES(ftle_sycl_generic  PROPERTIES COMPILE_FLAGS  ${SYCL_COMPILE_FLAGS})
+           SET_TARGET_PROPERTIES(ftle_sycl_generic  PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
+           INSTALL(TARGETS ftle_sycl_generic RUNTIME DESTINATION bin)
+
 
 	ENDIF()
 	
