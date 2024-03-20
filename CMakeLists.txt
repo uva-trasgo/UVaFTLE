@@ -25,8 +25,8 @@ endif()
 
 #endif() 
 
-include(CheckLanguage)
-check_language(CUDA)
+#include(CheckLanguage)
+#check_language(CUDA)
 
 #if(NOT CMAKE_CUDA_COMPILER)
 #	message(FATAL_ERROR "Can't find CUDA")
@@ -41,16 +41,6 @@ endif()
 
 #enable_language(CUDA)
 
-#if(${CMAKE_VERSION} VERSION_GREATER "3.17") 
-#	IF(NOT CUDA_ARCH)
-#		message("CUDA_ARCH not specified. Compiling for 70 architecture")
-#		SET(CUDA_ARCH "70")
-#	ELSE()
-#		message("Compiling for ${CUDA_ARCH} architecture(s)")
-#	ENDIF()
-#ELSE()
-#	UNSET(CUDA_ARCH)
-#ENDIF()
 SET(CUDA_PATH "/opt/cuda-11.3")
 SET(CFLAGS "-O3")
 SET(OMP_FLAGS "-fopenmp")
@@ -153,14 +143,20 @@ INSTALL(TARGETS ftle_guided_alone ftle_dynamic_alone ftle_static_alone ftle_hip 
 
 # SYCL Implementation
 
-IF(WITH_SYCL_CPU STREQUAL "yes"  OR WITH_SYCL_CUDA STREQUAL "yes" OR WITH_SYCL_ROCM STREQUAL "yes")
-	SET(OPENSYCL_DIR "/home/trasgo/local/AdaptiveCPP")
+IF(WITH_SYCL_CPU STREQUAL "yes"  OR WITH_SYCL_CUDA STREQUAL "yes" OR WITH_SYCL_ROCM STREQUAL "yes" OR WITH_SYCL_GENERIC STREQUAL "yes")
+	#NOTE FOR USERS: manually specify this vars editing CMakeLists.txt or
+        #manually inicializate when cmake is invoked
+	
+	IF(NOT ADPCPP_DIR)
+		message("-- SYCL enabled but ADPCCP_DIR  not specified. Setting by default to $ENV{HOME}/local/AdaptiveCPP")
+		SET(ADPCPP_DIR "$ENV{HOME}/local/AdaptiveCPP")
+	ENDIF()
 	find_program(SYCL_CC "acpp")
 	IF(NOT SYCL_CC)
 		message(FATAL_ERROR "sycl compiler not found")
 	ENDIF()
-	set (CMAKE_CXX_COMPILER "${OPENSYCL_DIR}/bin/acpp")
-	set (CMAKE_CXX_LINKER "${OPENSYCL_DIR}/bin/acpp")
+	set (CMAKE_CXX_COMPILER "${ADPCPP_DIR}/bin/acpp")
+	set (CMAKE_CXX_LINKER "${ADPCPP_DIR}/bin/acpp")
 	
 
 	#NOTE FOR USERS: manually specify this vars editing CMakeLists.txt or
@@ -170,62 +166,69 @@ IF(WITH_SYCL_CPU STREQUAL "yes"  OR WITH_SYCL_CUDA STREQUAL "yes" OR WITH_SYCL_R
 		SET(BOOST_DIR "$ENV{HOME}/local/boost")
 	ENDIF()
 
-
-
-
-
 	SET(SYCL_SRCDIR "SYCL/src")
-	SET(SYCL_SRC  ${SYCL_SRCDIR}/preprocess.cpp
-		${SYCL_SRCDIR}/arithmetic.cpp ${SYCL_SRCDIR}/ftle.cpp)
+	SET(USM_SRCDIR "SYCL-usm/src")
+	SET(SYCL_SRC  ${SYCL_SRCDIR}/preprocess.cpp ${SYCL_SRCDIR}/arithmetic.cpp ${SYCL_SRCDIR}/ftle.cpp)
+	SET(USM_SRC  ${USM_SRCDIR}/preprocess.cpp ${USM_SRCDIR}/arithmetic.cpp 	${USM_SRCDIR}/ftle.cpp)
+	
 
 	IF(WITH_SYCL_CPU STREQUAL "yes")
-                SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include -march=native --acpp-targets='omp'  -DBLOCK=512")
+                SET(SYCL_COMPILE_FLAGS "${CFLAGS} -march=native --acpp-targets='omp'  -DBLOCK=512")
                 SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib --acpp-targets='omp'  -lstdc++ -L${BOOST_DIR}/lib  -lm")
                 ADD_EXECUTABLE(ftle_sycl_cpu  ${SYCL_SRC})
-                SET_TARGET_PROPERTIES(ftle_sycl_cpu  PROPERTIES COMPILE_FLAGS  ${SYCL_COMPILE_FLAGS})
-                SET_TARGET_PROPERTIES(ftle_sycl_cpu  PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
-                INSTALL(TARGETS ftle_sycl_cpu RUNTIME DESTINATION bin)
-
+		ADD_EXECUTABLE(ftle_usm_cpu ${USM_SRC})
+                SET_TARGET_PROPERTIES(ftle_sycl_cpu PROPERTIES COMPILE_FLAGS "${SYCL_COMPILE_FLAGS} -I./SYCL/include")
+                SET_TARGET_PROPERTIES(ftle_usm_cpu PROPERTIES COMPILE_FLAGS "${SYCL_COMPILE_FLAGS} -I./SYCL-usm/include")
+                SET_TARGET_PROPERTIES(ftle_sycl_cpu ftle_usm_cpu  PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
+                INSTALL(TARGETS ftle_sycl_cpu ftle_usm_cpu RUNTIME DESTINATION bin)	
 	ENDIF()
 	
-	SET (ARCH "sm_70" )
-	IF(WITH_SYCL_CUDA STREQUAL "yes")
-		#TODO configurar arquitectura en CmakeLIST
-		SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include --acpp-targets='cuda:sm_70' -DCUDA_DEVICE -DBLOCK=512")
+	#NOTE FOR USERS: Change the architecture sm_70 for other nvidia devices
+	IF(WITH_SYCL_CUDA STREQUAL "yes")		
+		SET(SYCL_COMPILE_FLAGS "${CFLAGS}  --acpp-targets='cuda:sm_70' -DCUDA_DEVICE -DBLOCK=512")
 		SET(SYCL_LINK_FLAGS " -L${BOOST_DIR}/lib --acpp-targets='cuda:sm_70'")
 		ADD_EXECUTABLE(ftle_sycl_cuda  ${SYCL_SRC})
-		SET_TARGET_PROPERTIES(ftle_sycl_cuda  PROPERTIES COMPILE_FLAGS 	${SYCL_COMPILE_FLAGS})
-		SET_TARGET_PROPERTIES(ftle_sycl_cuda  PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
-		INSTALL(TARGETS ftle_sycl_cuda RUNTIME DESTINATION bin)
+		ADD_EXECUTABLE(ftle_usm_cuda ${USM_SRC})
+                SET_TARGET_PROPERTIES(ftle_sycl_cuda PROPERTIES COMPILE_FLAGS "${SYCL_COMPILE_FLAGS} -I./SYCL/include")
+                SET_TARGET_PROPERTIES(ftle_usm_cuda PROPERTIES COMPILE_FLAGS "${SYCL_COMPILE_FLAGS} -I./SYCL-usm/include")
+		SET_TARGET_PROPERTIES(ftle_sycl_cuda ftle_usm_cuda PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
+		INSTALL(TARGETS ftle_sycl_cuda ftle_usm_cuda RUNTIME DESTINATION bin)
 	ENDIF()
 	
+	#NOTE FOR USERS: Change the architecture gfx900 for other amd devices
 	IF(WITH_SYCL_ROCM STREQUAL "yes")
-		#TODO configurar arquitectura en CmakeLIST
-		SET(ROCM_COMMON_FLAGS "--rocm-path=${ROCM_DIR} --acpp-targets='hip:gfx900' -I${ROCM_DIR}/hip/include/hip/ -DHIP_DEVICE  -DBLOCK=512")
-		SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include ${ROCM_COMMON_FLAGS}")
+		SET(ROCM_COMMON_FLAGS "--rocm-path=${ROCM_DIR} --acpp-targets='hip:gfx900' -I${ROCM_DIR}/include -DHIP_DEVICE  -DBLOCK=512")
+		SET(SYCL_COMPILE_FLAGS "${CFLAGS} ${ROCM_COMMON_FLAGS}")
 		SET(SYCL_LINK_FLAGS "-lstdc++ -L${ROCM_DIR}/lib -L${ROCM_DIR}/lib64 -L${BOOST_DIR}/lib ${ROCM_COMMON_FLAGS} -lm")
 		ADD_EXECUTABLE(ftle_sycl_rocm  ${SYCL_SRC})
-		SET_TARGET_PROPERTIES(ftle_sycl_rocm  PROPERTIES COMPILE_FLAGS 	${SYCL_COMPILE_FLAGS})
-		SET_TARGET_PROPERTIES(ftle_sycl_rocm  PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
-		INSTALL(TARGETS ftle_sycl_rocm RUNTIME DESTINATION bin)
+		ADD_EXECUTABLE(ftle_usm_rocm  ${USM_SRC})
+		SET_TARGET_PROPERTIES(ftle_sycl_rocm PROPERTIES COMPILE_FLAGS "${SYCL_COMPILE_FLAGS} -I./SYCL/include")
+                SET_TARGET_PROPERTIES(ftle_usm_rocm PROPERTIES COMPILE_FLAGS "${SYCL_COMPILE_FLAGS} -I./SYCL-usm/include")
+		SET_TARGET_PROPERTIES(ftle_sycl_rocm ftle_usm_rocm PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
+		INSTALL(TARGETS ftle_sycl_rocm ftle_usm_rocm RUNTIME DESTINATION bin)
 	ENDIF()
 	
 	IF(WITH_SYCL_CUDA STREQUAL "yes" AND WITH_SYCL_ROCM STREQUAL "yes")
-           SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include -DGPU_ALL --acpp-targets='hip:gfx900\;cuda:sm_70'  -I${ROCM_DIR}/hip/include/  -DBLOCK=512")
-           SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib  --acpp-targets='hip:gfx900\;cuda:sm_70' -L${ROCM_DIR}/lib -L${ROCM_DIR}/lib64 -L${BOOST_DIR}/lib ${ROCM_COMMON_FLAGS} -lm")
+	   SET(TARGETS "hip:gfx900;cuda:sm_70")
+           SET(SYCL_COMPILE_FLAGS "${CFLAGS} --acpp-explicit-multipass -DGPU_ALL  -I${ROCM_DIR}/include/  -DBLOCK=512")
+           SET(SYCL_LINK_FLAGS "-lstdc++ --acpp-explicit-multipass  -L${BOOST_DIR}/lib  -L${ROCM_DIR}/lib -L${ROCM_DIR}/lib64 -L${BOOST_DIR}/lib ${ROCM_COMMON_FLAGS} -lm")
            ADD_EXECUTABLE(ftle_sycl_gpu  ${SYCL_SRC})
-           SET_TARGET_PROPERTIES(ftle_sycl_gpu  PROPERTIES COMPILE_FLAGS  ${SYCL_COMPILE_FLAGS})
-           SET_TARGET_PROPERTIES(ftle_sycl_gpu  PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
-           INSTALL(TARGETS ftle_sycl_gpu RUNTIME DESTINATION bin)
+	   ADD_EXECUTABLE(ftle_usm_gpu  ${USM_SRC})
+	   SET_TARGET_PROPERTIES(ftle_sycl_gpu PROPERTIES COMPILE_FLAGS "${SYCL_COMPILE_FLAGS} -I./SYCL/include --acpp-targets='${TARGETS}'" )
+           SET_TARGET_PROPERTIES(ftle_usm_gpu PROPERTIES COMPILE_FLAGS "${SYCL_COMPILE_FLAGS} -I./SYCL-usm/include" --acpp-targets='${TARGETS}')
+           SET_TARGET_PROPERTIES(ftle_sycl_gpu ftle_usm_gpu PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS} --acpp-targets='${TARGETS}')
+           INSTALL(TARGETS ftle_sycl_gpu ftle_usm_gpu RUNTIME DESTINATION bin)
 
+	ENDIF()
+
+	IF(WITH_SYCL_GENERIC STREQUAL "yes")
            SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include -DGPU_ALL --acpp-targets='generic'  -I${ROCM_DIR}/hip/include/ -DBLOCK=512")
            SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib --acpp-targets='generic'")
            ADD_EXECUTABLE(ftle_sycl_generic  ${SYCL_SRC})
-           SET_TARGET_PROPERTIES(ftle_sycl_generic  PROPERTIES COMPILE_FLAGS  ${SYCL_COMPILE_FLAGS})
-           SET_TARGET_PROPERTIES(ftle_sycl_generic  PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
-           INSTALL(TARGETS ftle_sycl_generic RUNTIME DESTINATION bin)
-
-
+	   ADD_EXECUTABLE(ftle_usm_generic  ${USM_SRC})
+	   SET_TARGET_PROPERTIES(ftle_sycl_generic PROPERTIES COMPILE_FLAGS "${SYCL_COMPILE_FLAGS} -I./SYCL/include")
+           SET_TARGET_PROPERTIES(ftle_usm_generic PROPERTIES COMPILE_FLAGS "${SYCL_COMPILE_FLAGS} -I./SYCL-usm/include")
+           SET_TARGET_PROPERTIES(ftle_sycl_generic ftle_usm_generic PROPERTIES LINK_FLAGS ${SYCL_LINK_FLAGS})
+           INSTALL(TARGETS ftle_sycl_generic ftle_usm_generic RUNTIME DESTINATION bin)
 	ENDIF()
-	
 ENDIF()
