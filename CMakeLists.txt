@@ -222,7 +222,7 @@ IF(WITH_SYCL_CPU STREQUAL "yes"  OR WITH_SYCL_CUDA STREQUAL "yes" OR WITH_SYCL_R
 	ENDIF()
 
 	IF(WITH_SYCL_GENERIC STREQUAL "yes")
-           SET(SYCL_COMPILE_FLAGS "${CFLAGS} -I./SYCL/include -DGPU_ALL --acpp-targets='generic'  -I${ROCM_DIR}/hip/include/ -DBLOCK=512")
+           SET(SYCL_COMPILE_FLAGS "${CFLAGS} -DGPU_ALL --acpp-targets='generic'  -I${ROCM_DIR}/hip/include/ -DBLOCK=512")
            SET(SYCL_LINK_FLAGS "-lstdc++ -L${BOOST_DIR}/lib --acpp-targets='generic'")
            ADD_EXECUTABLE(ftle_sycl_generic  ${SYCL_SRC})
 	   ADD_EXECUTABLE(ftle_usm_generic  ${USM_SRC})

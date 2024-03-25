@@ -124,13 +124,9 @@ void create_nFacesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVert
 	}	
 }
 
-cl::sycl::event create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, cl::sycl::buffer<int, 1> *b_faces, cl::sycl::buffer<int, 1> *b_nFacesPerPoint, cl::sycl::buffer<int, 1> *b_facesPerPoint)
+cl::sycl::event create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, int* faces, int*  nFacesPerPoint, int* facesPerPoint)
 {
 return q->submit([&](handler &h){
-	auto faces = b_faces->get_access<access::mode::read>(h);
-	auto nFacesPerPoint = b_nFacesPerPoint->get_access<access::mode::read>(h);
-	auto facesPerPoint = b_facesPerPoint->get_access<access::mode::discard_write>(h);
-
 #if defined(CUDA_DEVICE) || defined(HIP_DEVICE)		
 	int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
 	h.parallel_for<class preprocess> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
