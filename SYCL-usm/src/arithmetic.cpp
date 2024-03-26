@@ -1,12 +1,10 @@
 #include "arithmetic.h"
 ::event compute_gradient_2D (::event* dep_event, queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, double* coords, double* flowmap, int* faces, int* nFacesPerPoint, int* facesPerPoint, double* logSqrt, double T )	
 {
-//dep_event->wait();
 return q->submit([&](handler &h){
+	h.depends_on(*dep_event);	
 #if (defined(CUDA_DEVICE) || defined(HIP_DEVICE))		
 	int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
-	//dep_event->wait();
-	h.depends_on(*dep_event);
 	h.parallel_for<class ftle2D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
 	if(i.get_global_id(0) < nPoints){
 		int th_id = i.get_global_id(0) + offset;
@@ -166,9 +164,9 @@ return q->submit([&](handler &h){
 ::event compute_gradient_3D (::event* dep_event, queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, double* coords, double* flowmap, int* faces, int* nFacesPerPoint, int* facesPerPoint, double* logSqrt, double T )
 {
 return q->submit([&](handler &h){
+	h.depends_on(*dep_event);
 #if defined(CUDA_DEVICE) || defined(HIP_DEVICE)		
 	int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
-	h.depends_on(*dep_event);
 	h.parallel_for<class ftle3D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
 		if(i.get_global_id(0) < nPoints){
 		int th_id = i.get_global_id(0) + offset;

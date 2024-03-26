@@ -206,7 +206,7 @@ int main(int argc, char *argv[]) {
 		offsets_faces[d] = (d != 0) ? nFacesPerPoint[offsets[d]-1]: 0;
 	}
 	
-	printf("\nComputing FTLE (SYCL)...");
+	printf("\nComputing FTLE (SYCL USM)...");
 	struct timeval global_timer_start;
 	gettimeofday(&global_timer_start, NULL);
 
@@ -224,8 +224,8 @@ int main(int argc, char *argv[]) {
 				event_list[nDevices + d] = compute_gradient_3D  ( &event_list[d], &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, coords, flowmap, faces, nFacesPerPoint,p_faces, p_logSqrt, t_eval);
 		   	
 		}
-		 for(int d=0; d < nDevices; d++)
-		 event_list[nDevices + d].wait();
+		for(int d=0; d < nDevices; d++)
+			event_list[nDevices + d].wait();
 	}
 	struct timeval global_timer_end;
 	gettimeofday(&global_timer_end, NULL);
@@ -242,7 +242,7 @@ int main(int argc, char *argv[]) {
 		for ( int ii = 0; ii < nPoints; ii++ )
 			fprintf(fp_w, "%f\n", logSqrt[ii]);
 		fclose(fp_w);
-		fp_w = fopen("sycl_preproc.csv", "w");
+		fp_w = fopen("usm_preproc.csv", "w");
                 for ( int ii = 0; ii < nFacesPerPoint[nPoints-1]; ii++ )
                         fprintf(fp_w, "%d\n", facesPerPoint[ii]);
                 fclose(fp_w);
