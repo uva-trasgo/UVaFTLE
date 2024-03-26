@@ -27,7 +27,7 @@ float getKernelExecutionTime(::event event){
  	return (end_time - start_time) / 1000000.0f;
 }
 
-std::vector<queue> get_queues_from_platform(int plat, int nDevices){
+std::vector<queue> get_queues_from_platform(int plat, int nDevices, int device_order){
 	auto property_list =::property_list{::property::queue::enable_profiling()};
 	if(plat == OMP_PLATFORM)
 	{
@@ -43,8 +43,9 @@ std::vector<queue> get_queues_from_platform(int plat, int nDevices){
 			 exit(1);
 		}
 		for (int d=0; d< nDevices; d++){
-			printf("Dispositivo %d: %s\n", d, devs[nDevices - 1 -d ].get_info<info::device::name>().c_str());
-			queues[d] = queue(devs[nDevices - 1 -d ], property_list);
+			int dd = (device_order) ? d :  devs.size() - 1 -d;
+			printf("Dispositivo %d: %s\n", d, devs[dd].get_info<info::device::name>().c_str());
+			queues[d] = queue(devs[dd], property_list);
 		}
 		return queues;
 	}
@@ -60,7 +61,6 @@ std::vector<queue> get_queues_from_platform(int plat, int nDevices){
 			}
 			std::vector<queue> queues(nDevices);
 			for (int d=0; d< nDevices; d++){
-				printf("Dispositivo %d: %s\n", d, devs[d].get_info<info::device::name>().c_str());
 				printf("Dispositivo %d: %s\n", d, devs[d].get_info<info::device::name>().c_str());
 				queues[d] = queue(devs[d], property_list);
 			}
@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
 	fflush(stdout);
 
 	// Check usage
-	if (argc != 8)
+	if (argc < 8)
 	{
 		printf("USAGE: %s <nDim> <coords_file> <faces_file> <flowmap_file> <t_eval> <print2file> <nDevices>\n", argv[0]);
 		printf("\tnDim:    dimensions of the space (2D/3D)\n");
@@ -93,13 +93,17 @@ int main(int argc, char *argv[]) {
 		printf("\tflowmap_file:  file where flowmap values are stored.\n");
 		printf("\tt_eval:        time when compute ftle is desired.\n");
 		printf("\tprint to file? (0-NO, 1-YES)\n");
-                printf("\tnDevices:       number of GPUs\n");
+          	printf("\tnDevices:       number of GPUs\n");
+#ifdef GPU_ALL
+		printf("\tDevice order:    (0 - from 0 to n-1; from n-1 to 0\n");    
+#endif		      
 		return 1;
 	}
 
 	double t_eval = atof(argv[5]);
 	int check_EOF;
 	int nDevices = atoi(argv[7]);
+	int device_order = (argc == 9) ? atoi(argv[8]): 0;
 	char buffer[255];
 	int nDim, nVertsPerFace, nPoints, nFaces;
 	FILE *file;
@@ -112,14 +116,14 @@ int main(int argc, char *argv[]) {
 
 	/*Generate SYCL queues*/
 #ifdef 	HIP_DEVICE
-	auto queues = get_queues_from_platform(HIP_PLATFORM, nDevices);
+	auto queues = get_queues_from_platform(HIP_PLATFORM, nDevices, 0);
 #elif 	defined CUDA_DEVICE
-	auto queues = get_queues_from_platform(CUDA_PLATFORM, nDevices);
+	auto queues = get_queues_from_platform(CUDA_PLATFORM, nDevices, 0);
 #elif 	defined GPU_ALL
-	auto queues = get_queues_from_platform(ALL_GPUS_PLATFORM, nDevices);
+	auto queues = get_queues_from_platform(ALL_GPUS_PLATFORM, nDevices,device_order);
 #else
 	nDevices = 1;
-	auto queues = get_queues_from_platform(OMP_PLATFORM, nDevices);
+	auto queues = get_queues_from_platform(OMP_PLATFORM, nDevices,0);
 #endif
 	for(int d =0; d < nDevices; d++)
 		printf("Kernel device %d: %s\n", d, queues[d].get_device().get_info<info::device::name>().c_str());  
