@@ -24,7 +24,7 @@ all: compute_ftle
 # -------------------------- #
 
 compute_ftle:
-	${CC} ${DIR_src}/ftle.cu ${SRC} -arch=sm_35 -Xcompiler -fopenmp -I/usr/local/cuda/include/ -L/usr/local/cuda/bin/ -I ./include -o ${DIR_bin}/ftle_cuda_pinned -DPINNED ${FLAGS} ${CUDA_FLAGS}
-	${CC} ${DIR_src}/ftle.cu ${SRC} -arch=sm_35 -Xcompiler -fopenmp -I/usr/local/cuda/include/ -L/usr/local/cuda/bin/ -I ./include -o ${DIR_bin}/ftle_cuda ${FLAGS} ${CUDA_FLAGS}
+	${CC} ${DIR_src}/ftle.cu ${SRC} -arch=sm_70 -Xcompiler -fopenmp -I/usr/local/cuda/include/ -L/usr/local/cuda/bin/ -I ./include -o ${DIR_bin}/ftle_cuda_pinned -DPINNED ${FLAGS} ${CUDA_FLAGS}
+	${CC} ${DIR_src}/ftle.cu ${SRC} -arch=sm_70 -Xcompiler -fopenmp -I/usr/local/cuda/include/ -L/usr/local/cuda/bin/ -I ./include -o ${DIR_bin}/ftle_cuda ${FLAGS} ${CUDA_FLAGS}
 clean:
 	cd ${DIR_bin} && rm ${OBJS} && cd ..

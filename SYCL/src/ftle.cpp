@@ -32,7 +32,7 @@ std::vector<queue> get_queues_from_platform(int plat, int nDevices, int device_o
 	if(plat == OMP_PLATFORM)
 	{
 		std::vector<queue> queues(1);
-		queues[0] = queue(cpu_selector{}, property_list);
+		queues[0] = queue(cpu_selector_v, property_list);
 		return queues;
 	}
 	if(plat == ALL_GPUS_PLATFORM){
@@ -44,7 +44,6 @@ std::vector<queue> get_queues_from_platform(int plat, int nDevices, int device_o
 		}
 		for (int d=0; d< nDevices; d++){
 			int dd = (device_order) ? d :  devs.size() - 1 -d;
-			printf("Dispositivo %d: %s\n", d, devs[dd].get_info<info::device::name>().c_str());
 			queues[d] = queue(devs[dd], property_list);
 		}
 		return queues;
@@ -61,7 +60,6 @@ std::vector<queue> get_queues_from_platform(int plat, int nDevices, int device_o
 			}
 			std::vector<queue> queues(nDevices);
 			for (int d=0; d< nDevices; d++){
-				printf("Dispositivo %d: %s\n", d, devs[d].get_info<info::device::name>().c_str());
 				queues[d] = queue(devs[d], property_list);
 			}
 			return queues;
@@ -93,7 +91,7 @@ int main(int argc, char *argv[]) {
 		printf("\tflowmap_file:  file where flowmap values are stored.\n");
 		printf("\tt_eval:        time when compute ftle is desired.\n");
 		printf("\tprint to file? (0-NO, 1-YES)\n");
-          printf("\tnDevices:       number of GPUs\n");
+          	printf("\tnDevices:       number of GPUs\n");
 #ifdef GPU_ALL
 		printf("\tDevice order:    (0 - from 0 to n-1; from n-1 to 0\n");    
 #endif		      
@@ -197,7 +195,6 @@ int main(int argc, char *argv[]) {
 	int offsets[maxDevices] =  {0,0,0,0};
 	int v_points_faces[maxDevices] = {1,1,1,1};
 	int offsets_faces[maxDevices] = {0,0,0,0};
-	//std::vector<::event> event_list(nDevices*2);
 	::event event_list[nDevices*2];
 	int gap= ((nPoints / nDevices)/BLOCK)*BLOCK;
 	for(int d=0; d < nDevices; d++){
@@ -234,7 +231,8 @@ int main(int argc, char *argv[]) {
 		for(int d=0; d < nDevices; d++){
 			event_list[d] = create_facesPerPoint_vector(&queues[d], nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, &b_faces, &b_nFacesPerPoint,
 			(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))));
-
+		}
+		for(int d=0; d < nDevices; d++){
 			if ( nDim == 2 )
 				event_list[nDevices + d] = compute_gradient_2D ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint,(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))),(d==0 ? &b_logSqrt0 : (d==1 ? &b_logSqrt1 : (d==2 ? &b_logSqrt2 : &b_logSqrt3))), t_eval);
 		  	else
@@ -274,6 +272,16 @@ int main(int argc, char *argv[]) {
 	}
 	printf("Global time: %f:\n", time);
 	printf("--------------------------------------------------------\n");
+	printf("Event Timestamp\n");
+	for(int d = 0; d < nDevices; d++){
+		auto start_pre = event_list[d].get_profiling_info<::info::event_profiling::command_start>();
+ 		auto end_pre = event_list[d].get_profiling_info<cl::sycl::info::event_profiling::command_end>();
+ 		auto start_ftle = event_list[nDevices + d].get_profiling_info<::info::event_profiling::command_start>();
+ 		auto end_ftle = event_list[nDevices + d].get_profiling_info<cl::sycl::info::event_profiling::command_end>();
+ 		std::cout << "Device Name; Preproc Start; Preproc End; FTLE Start; FTLE END" << std::endl;
+ 		std::cout << queues[d].get_device().get_info<info::device::name>().c_str() << ";" << std::fixed  <<  start_pre  << ";" << std::fixed  <<  end_pre << ";" << std::fixed  <<  start_ftle << ";" << std::fixed  <<  end_ftle << std::endl;
+ 	}
+ 	printf("--------------------------------------------------------\n");
 	fflush(stdout);
 	
 	/* Free memory */

@@ -50,22 +50,25 @@ std::vector<queue> get_queues_from_platform(int plat, int nDevices, int device_o
 	}
 	
 	auto platform = platform::get_platforms();
-	std::string check = (!plat) ? "HIP" : "CUDA";
-	for (int p=0; p < platform.size(); p++){
+	std::string check = (!plat) ? "HIP" : "NVIDIA CUDA BACKEND";
+	int num_dev_found=0;
+	std::vector<queue> queues(nDevices);
+	for (int p=0; p < platform.size() && num_dev_found < nDevices; p++){
+		printf("Plataforma %d: %s\n", p, platform[p].get_info<info::platform::name>().c_str());
 		if(!platform[p].get_info<info::platform::name>().compare(check)){
-			auto devs= platform[p].get_devices();
-			if(devs.size() < nDevices){
-			 	printf("ERROR: Requested %d GPUs, but only %d GPU available in the system. Aborting program...\n",nDevices,(int) devs.size());
-			 	exit(1);
+			auto devs= platform[p].get_devices();	
+			for (int d=0; d< devs.size() && num_dev_found < nDevices; d++){
+				queues[num_dev_found] = queue(devs[d], property_list);
+				num_dev_found++;
 			}
-			std::vector<queue> queues(nDevices);
-			for (int d=0; d< nDevices; d++){
-				queues[d] = queue(devs[d], property_list);
-			}
-			return queues;
-		}
+		}	
 	}
-	return std::vector<queue>();
+	if(num_dev_found < nDevices){
+		printf("ERROR: Requested %d GPUs, but only %d GPU available in the system. Aborting program...\n",nDevices,num_dev_found);
+		exit(1);
+	}
+	
+	return queues;
 }
 
 int main(int argc, char *argv[]) {
@@ -240,11 +243,11 @@ int main(int argc, char *argv[]) {
 	{
 		printf("\nWriting result in output file...				  ");
 		fflush(stdout);
-		FILE *fp_w = fopen("usm_result.csv", "w");
+		FILE *fp_w = fopen("OP_usm_result.csv", "w");
 		for ( int ii = 0; ii < nPoints; ii++ )
 			fprintf(fp_w, "%f\n", logSqrt[ii]);
 		fclose(fp_w);
-		fp_w = fopen("usm_preproc.csv", "w");
+		fp_w = fopen("OP_usm_preproc.csv", "w");
                 for ( int ii = 0; ii < nFacesPerPoint[nPoints-1]; ii++ )
                         fprintf(fp_w, "%d\n", facesPerPoint[ii]);
                 fclose(fp_w);

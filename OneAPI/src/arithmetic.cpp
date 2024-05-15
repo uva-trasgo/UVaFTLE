@@ -1,8 +1,14 @@
 #include "arithmetic.h"
-::event compute_gradient_2D (::event* dep_event, queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, double* coords, double* flowmap, int* faces, int* nFacesPerPoint, int* facesPerPoint, double* logSqrt, double T )	
+::event compute_gradient_2D (queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, ::buffer<double, 1> *b_coords, ::buffer<double, 1> *b_flowmap, ::buffer<int, 1> *b_faces, ::buffer<int, 1> *b_nFacesPerPoint, ::buffer<int, 1> *b_facesPerPoint, ::buffer<double, 1> *b_log_sqrt, double T )	
 {
 return q->submit([&](handler &h){
-	h.depends_on(*dep_event);	
+
+	auto coords = b_coords->get_access<access::mode::read>(h);
+	auto flowmap = b_flowmap->get_access<access::mode::read>(h);
+	auto faces = b_faces->get_access<access::mode::read>(h);
+	auto nFacesPerPoint = b_nFacesPerPoint->get_access<access::mode::read>(h);
+	auto facesPerPoint = b_facesPerPoint->get_access<access::mode::read>(h);
+	auto d_logSqrt = b_log_sqrt->get_access<access::mode::discard_write>(h);
 #if (defined(CUDA_DEVICE) || defined(HIP_DEVICE))		
 	int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
 	h.parallel_for<class ftle2D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
@@ -152,19 +158,24 @@ return q->submit([&](handler &h){
 		max = cl::sycl::sqrt(max);
 		max = cl::sycl::log (max);
 #if (defined(CUDA_DEVICE) || defined(HIP_DEVICE))					
-		logSqrt[i.get_global_id(0)] = max / T;				
+		d_logSqrt[i.get_global_id(0)] = max / T;				
 	    }
 #else
-		logSqrt[i[0]] = max / T;		
+		d_logSqrt[i[0]] = max / T;		
 #endif		    	
 	}); /*End parallel for*/
 }); /*End submit*/	
 }
 
-::event compute_gradient_3D (::event* dep_event, queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, double* coords, double* flowmap, int* faces, int* nFacesPerPoint, int* facesPerPoint, double* logSqrt, double T )
+::event compute_gradient_3D (queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, ::buffer<double, 1> *b_coords, ::buffer<double, 1> *b_flowmap, ::buffer<int, 1> *b_faces, ::buffer<int, 1> *b_nFacesPerPoint, ::buffer<int, 1> *b_facesPerPoint, ::buffer<double, 1> *b_log_sqrt, double T )
 {
 return q->submit([&](handler &h){
-	h.depends_on(*dep_event);
+	auto coords = b_coords->get_access<access::mode::read>(h);
+	auto flowmap = b_flowmap->get_access<access::mode::read>(h);
+	auto faces = b_faces->get_access<access::mode::read>(h);
+	auto nFacesPerPoint = b_nFacesPerPoint->get_access<access::mode::read>(h);
+	auto facesPerPoint = b_facesPerPoint->get_access<access::mode::read>(h);
+	auto d_logSqrt = b_log_sqrt->get_access<access::mode::discard_write>(h);
 #if defined(CUDA_DEVICE) || defined(HIP_DEVICE)		
 	int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
 	h.parallel_for<class ftle3D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
@@ -382,10 +393,10 @@ return q->submit([&](handler &h){
 		max = cl::sycl::sqrt(max);
 		max = cl::sycl::log (max);
 #if defined(CUDA_DEVICE) || defined(HIP_DEVICE)			
-		logSqrt[i.get_global_id(0)] = max / T;				
+		d_logSqrt[i.get_global_id(0)] = max / T;				
 	    }
 #else
-		logSqrt[i[0]] = max / T;
+		d_logSqrt[i[0]] = max / T;
 #endif
 	}); /*End parallel for*/
 }); /*End submit*/	
