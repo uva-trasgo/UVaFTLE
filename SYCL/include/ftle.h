@@ -1,5 +1,5 @@
-#include <CL/sycl.hpp>
-using namespace cl::sycl;
+#include <sycl/sycl.hpp>
+using namespace sycl;
 
 
 #ifndef STRUCTS_H

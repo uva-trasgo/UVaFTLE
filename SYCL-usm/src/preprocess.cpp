@@ -1,7 +1,7 @@
 #include "preprocess.h"
 #include "arithmetic.h"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 void read_coordinates ( char *filename, int nDim, int nPoints, double *coords )
 {
@@ -124,7 +124,7 @@ void create_nFacesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVert
 	}	
 }
 
-cl::sycl::event create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, int* faces, int*  nFacesPerPoint, int* facesPerPoint)
+::event create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, int* faces, int*  nFacesPerPoint, int* facesPerPoint)
 {
 return q->submit([&](handler &h){
 #if defined(CUDA_DEVICE) || defined(HIP_DEVICE)		

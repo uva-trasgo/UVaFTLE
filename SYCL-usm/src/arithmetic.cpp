@@ -142,15 +142,15 @@ return q->submit([&](handler &h){
 		double A11 = ftle_matrix[1];
 		double A20 = ftle_matrix[2];
 		double A21 = ftle_matrix[3];
-		double sq = cl::sycl::sqrt(A21 * A21 + A10 * A10 - 2 * (A10 * A21) + 4 * (A11 * A20));
+		double sq = sycl::sqrt(A21 * A21 + A10 * A10 - 2 * (A10 * A21) + 4 * (A11 * A20));
 		d_W_ei[0] = (A21 + A10 + sq) / 2;
 		d_W_ei[1] = (A21 + A10 - sq) / 2; 
 
 		//---------------- max---sqrt---log
 		double max = d_W_ei[0];	 
 		if (d_W_ei[1] > max ) max = d_W_ei[1];
-		max = cl::sycl::sqrt(max);
-		max = cl::sycl::log (max);
+		max = sycl::sqrt(max);
+		max = sycl::log (max);
 #if (defined(CUDA_DEVICE) || defined(HIP_DEVICE))					
 		logSqrt[i.get_global_id(0)] = max / T;				
 	    }
@@ -366,21 +366,21 @@ return q->submit([&](handler &h){
 		}
 		else if(del<0)
 		{
-			double sqA = cl::sycl::sqrt(A);
-			double sq3 = cl::sycl::sqrt(3.0);
+			double sqA = sycl::sqrt(A);
+			double sq3 = sycl::sqrt(3.0);
 			double T   = (2*A*b-3*a*B) / (2*A*sqA);
-			double _xt = cl::sycl::acos(T);
+			double _xt = sycl::acos(T);
 			double xt  = _xt/3;
-			x1	 = (-b-2*sqA*cl::sycl::cos(xt)) / (3*a);
-			x2	 = (-b+sqA*(cl::sycl::cos(xt)+sq3*cl::sycl::sin(xt)))/(3*a);
-			x3	 = (-b+sqA*(cl::sycl::cos(xt)-sq3*cl::sycl::sin(xt)))/(3*a);
+			x1	 = (-b-2*sqA*sycl::cos(xt)) / (3*a);
+			x2	 = (-b+sqA*(sycl::cos(xt)+sq3*sycl::sin(xt)))/(3*a);
+			x3	 = (-b+sqA*(sycl::cos(xt)-sq3*sycl::sin(xt)))/(3*a);
 		}
 		double max = x1;
 		if (x2 > max ) max = x2;
 		if (x3 > max ) max = x3;
 		
-		max = cl::sycl::sqrt(max);
-		max = cl::sycl::log (max);
+		max = sycl::sqrt(max);
+		max = sycl::log (max);
 #if defined(CUDA_DEVICE) || defined(HIP_DEVICE)			
 		logSqrt[i.get_global_id(0)] = max / T;				
 	    }
