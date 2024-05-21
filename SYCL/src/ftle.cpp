@@ -273,12 +273,12 @@ int main(int argc, char *argv[]) {
 	printf("Global time: %f:\n", time);
 	printf("--------------------------------------------------------\n");
 	printf("Event Timestamp\n");
+	std::cout << "Device Name; Preproc Start; Preproc End; FTLE Start; FTLE END" << std::endl;
 	for(int d = 0; d < nDevices; d++){
 		auto start_pre = event_list[d].get_profiling_info<::info::event_profiling::command_start>();
  		auto end_pre = event_list[d].get_profiling_info<cl::sycl::info::event_profiling::command_end>();
  		auto start_ftle = event_list[nDevices + d].get_profiling_info<::info::event_profiling::command_start>();
- 		auto end_ftle = event_list[nDevices + d].get_profiling_info<cl::sycl::info::event_profiling::command_end>();
- 		std::cout << "Device Name; Preproc Start; Preproc End; FTLE Start; FTLE END" << std::endl;
+ 		auto end_ftle = event_list[nDevices + d].get_profiling_info<cl::sycl::info::event_profiling::command_end>();	
  		std::cout << queues[d].get_device().get_info<info::device::name>().c_str() << ";" << std::fixed  <<  start_pre  << ";" << std::fixed  <<  end_pre << ";" << std::fixed  <<  start_ftle << ";" << std::fixed  <<  end_ftle << std::endl;
  	}
  	printf("--------------------------------------------------------\n");
