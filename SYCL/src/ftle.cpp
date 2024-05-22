@@ -1,12 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
-#include <time.h>
-
-#include <vector>
-#include <iostream>
 #include <sycl/sycl.hpp>
-#include <assert.h>
+
 
 #include "ftle.h"
 #include "arithmetic.h"
@@ -21,18 +17,18 @@
 
 using namespace sycl;
 
-float getKernelExecutionTime(::event event){
+float getKernelExecutionTime(event event){
 	auto start_time = event.get_profiling_info<info::event_profiling::command_start>();
  	auto end_time = event.get_profiling_info<info::event_profiling::command_end>();
  	return (end_time - start_time) / 1000000.0f;
 }
 
 std::vector<queue> get_queues_from_platform(int plat, int nDevices, int device_order){
-	auto property_list =::property_list{::property::queue::enable_profiling()};
+	auto my_property_list = property_list{property::queue::enable_profiling()};
 	if(plat == OMP_PLATFORM)
 	{
 		std::vector<queue> queues(1);
-		queues[0] = queue(cpu_selector_v, property_list);
+		queues[0] = queue(cpu_selector_v, my_property_list);
 		return queues;
 	}
 	if(plat == ALL_GPUS_PLATFORM){
@@ -44,7 +40,7 @@ std::vector<queue> get_queues_from_platform(int plat, int nDevices, int device_o
 		}
 		for (int d=0; d< nDevices; d++){
 			int dd = (device_order) ? d :  devs.size() - 1 -d;
-			queues[d] = queue(devs[dd], property_list);
+			queues[d] = queue(devs[dd], my_property_list);
 		}
 		return queues;
 	}
@@ -59,7 +55,7 @@ std::vector<queue> get_queues_from_platform(int plat, int nDevices, int device_o
 			auto devs= platform[p].get_devices();	
 			for (int d=0; d< devs.size() && num_dev_found < nDevices; d++){
 				printf("Dispositivo %d: %s\n", d, devs[d].get_info<info::device::name>().c_str());
-				queues[num_dev_found] = queue(devs[d], property_list);
+				queues[num_dev_found] = queue(devs[d], my_property_list);
 				num_dev_found++;
 			}
 		}	
@@ -82,7 +78,7 @@ std::vector<queue> get_queues_from_platform(int plat, int nDevices, int device_o
 			}
 			std::vector<queue> queues(nDevices);
 			for (int d=0; d< nDevices; d++){
-				queues[d] = queue(devs[d], property_list);
+				queues[d] = queue(devs[d], my_property_list);
 			}
 			return queues;
 		}
@@ -218,7 +214,7 @@ int main(int argc, char *argv[]) {
 	int offsets[maxDevices] =  {0,0,0,0};
 	int v_points_faces[maxDevices] = {1,1,1,1};
 	int offsets_faces[maxDevices] = {0,0,0,0};
-	::event event_list[nDevices*2];
+	event event_list[nDevices*2];
 	int gap= ((nPoints / nDevices)/BLOCK)*BLOCK;
 	for(int d=0; d < nDevices; d++){
 		v_points[d] = (d == nDevices-1) ? nPoints - gap*d : gap; 
@@ -237,7 +233,7 @@ int main(int argc, char *argv[]) {
 
 	{
 		/*Creating SYCL BUFFERS*/
-		::buffer b_coords{coords, D1_RANGE(nPoints * nDim)}; 
+		::buffer b_coords{coords, D1_RANGE(nPoints * nDim)};
 		::buffer b_faces{faces, D1_RANGE(nFaces * nVertsPerFace)}; 
 		::buffer b_flowmap{flowmap, D1_RANGE(nPoints*nDim)};
 		::buffer b_nFacesPerPoint{nFacesPerPoint, D1_RANGE(nPoints)};	
@@ -288,9 +284,9 @@ int main(int argc, char *argv[]) {
 #else
 		fp_w = fopen("sycl_preproc.csv", "w");
 #endif
-                for ( int ii = 0; ii < nFacesPerPoint[nPoints-1]; ii++ )
-                        fprintf(fp_w, "%d\n", facesPerPoint[ii]);
-                fclose(fp_w);
+		for ( int ii = 0; ii < nFacesPerPoint[nPoints-1]; ii++ )
+			fprintf(fp_w, "%d\n", facesPerPoint[ii]);
+		fclose(fp_w);
 		printf("DONE\n\n");
 		printf("--------------------------------------------------------\n");
 		fflush(stdout);

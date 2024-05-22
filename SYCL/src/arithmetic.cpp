@@ -1,13 +1,13 @@
 #include "arithmetic.h"
-::event compute_gradient_2D (queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, ::buffer<double, 1> *b_coords, ::buffer<double, 1> *b_flowmap, ::buffer<int, 1> *b_faces, ::buffer<int, 1> *b_nFacesPerPoint, ::buffer<int, 1> *b_facesPerPoint, ::buffer<double, 1> *b_log_sqrt, double T )	
+event compute_gradient_2D (queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, buffer<double, 1> *b_coords, buffer<double, 1> *b_flowmap, buffer<int, 1> *b_faces, buffer<int, 1> *b_nFacesPerPoint, buffer<int, 1> *b_facesPerPoint, buffer<double, 1> *b_log_sqrt, double T )	
 {
 return q->submit([&](handler &h){
-	::accessor coords{*b_coords, h, read_only};
-	::accessor flowmap{*b_flowmap, h, read_only};
-	::accessor faces{*b_faces, h, read_only};
-	::accessor nFacesPerPoint{*b_nFacesPerPoint, h, read_only};
-	::accessor facesPerPoint{*b_facesPerPoint, h, read_only};
-	::accessor d_logSqrt{*b_log_sqrt, h, write_only, no_init};
+	accessor coords{*b_coords, h, read_only};
+	accessor flowmap{*b_flowmap, h, read_only};
+	accessor faces{*b_faces, h, read_only};
+	accessor nFacesPerPoint{*b_nFacesPerPoint, h, read_only};
+	accessor facesPerPoint{*b_facesPerPoint, h, read_only};
+	accessor d_logSqrt{*b_log_sqrt, h, write_only, no_init};
 #if (defined(CUDA_DEVICE) || defined(HIP_DEVICE))		
 	int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
 	h.parallel_for<class ftle2D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
@@ -166,15 +166,15 @@ return q->submit([&](handler &h){
 }); /*End submit*/	
 }
 
-::event compute_gradient_3D (queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, ::buffer<double, 1> *b_coords, ::buffer<double, 1> *b_flowmap, ::buffer<int, 1> *b_faces, ::buffer<int, 1> *b_nFacesPerPoint, ::buffer<int, 1> *b_facesPerPoint, ::buffer<double, 1> *b_log_sqrt, double T )
+event compute_gradient_3D (queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, buffer<double, 1> *b_coords, buffer<double, 1> *b_flowmap, buffer<int, 1> *b_faces, buffer<int, 1> *b_nFacesPerPoint, buffer<int, 1> *b_facesPerPoint, buffer<double, 1> *b_log_sqrt, double T )
 {
 return q->submit([&](handler &h){
-	::accessor coords{*b_coords, h, read_only};
-	::accessor flowmap{*b_flowmap, h, read_only};
-	::accessor faces{*b_faces, h, read_only};
-	::accessor nFacesPerPoint{*b_nFacesPerPoint, h, read_only};
-	::accessor facesPerPoint{*b_facesPerPoint, h, read_only};
-	::accessor d_logSqrt{*b_log_sqrt, h, write_only, no_init};
+	accessor coords{*b_coords, h, read_only};
+	accessor flowmap{*b_flowmap, h, read_only};
+	accessor faces{*b_faces, h, read_only};
+	accessor nFacesPerPoint{*b_nFacesPerPoint, h, read_only};
+	accessor facesPerPoint{*b_facesPerPoint, h, read_only};
+	accessor d_logSqrt{*b_log_sqrt, h, write_only, no_init};
 #if defined(CUDA_DEVICE) || defined(HIP_DEVICE)		
 	int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
 	h.parallel_for<class ftle3D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){

@@ -124,12 +124,12 @@ void create_nFacesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVert
 	}	
 }
 
-::event create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, ::buffer<int, 1> *b_faces, ::buffer<int, 1> *b_nFacesPerPoint, ::buffer<int, 1> *b_facesPerPoint)
+event create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, buffer<int, 1> *b_faces, buffer<int, 1> *b_nFacesPerPoint, buffer<int, 1> *b_facesPerPoint)
 {
 return q->submit([&](handler &h){
-	auto faces = b_faces->get_access<access::mode::read>(h);
-	auto nFacesPerPoint = b_nFacesPerPoint->get_access<access::mode::read>(h);
-	auto facesPerPoint = b_facesPerPoint->get_access<access::mode::discard_write>(h);
+	accessor faces{*b_faces, h, read_only};
+	accessor nFacesPerPoint{*b_nFacesPerPoint, h, read_only};
+	accessor facesPerPoint{*b_facesPerPoint, h, write_only, no_init};
 
 #if defined(CUDA_DEVICE) || defined(HIP_DEVICE)		
 	int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
