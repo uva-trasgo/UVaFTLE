@@ -8,7 +8,7 @@ return q->submit([&](handler &h){
 	accessor nFacesPerPoint{*b_nFacesPerPoint, h, read_only};
 	accessor facesPerPoint{*b_facesPerPoint, h, read_only};
 	accessor d_logSqrt{*b_log_sqrt, h, write_only, no_init};
-#if (defined(CUDA_DEVICE) || defined(HIP_DEVICE))		
+#if (defined(CUDA_DEVICE) || defined(HIP_DEVICE) || defined(GPU_ALL))		
 	int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
 	h.parallel_for<class ftle2D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
 	if(i.get_global_id(0) < nPoints){
@@ -156,7 +156,7 @@ return q->submit([&](handler &h){
 		if (d_W_ei[1] > max ) max = d_W_ei[1];
 		max = sycl::sqrt(max);
 		max = sycl::log (max);
-#if (defined(CUDA_DEVICE) || defined(HIP_DEVICE))					
+#if (defined(CUDA_DEVICE) || defined(HIP_DEVICE) || defined(GPU_ALL))			
 		d_logSqrt[i.get_global_id(0)] = max / T;				
 	    }
 #else
@@ -175,7 +175,7 @@ return q->submit([&](handler &h){
 	accessor nFacesPerPoint{*b_nFacesPerPoint, h, read_only};
 	accessor facesPerPoint{*b_facesPerPoint, h, read_only};
 	accessor d_logSqrt{*b_log_sqrt, h, write_only, no_init};
-#if defined(CUDA_DEVICE) || defined(HIP_DEVICE)		
+#if (defined(CUDA_DEVICE) || defined(HIP_DEVICE) || defined(GPU_ALL))		
 	int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
 	h.parallel_for<class ftle3D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
 		if(i.get_global_id(0) < nPoints){
@@ -391,7 +391,7 @@ return q->submit([&](handler &h){
 		
 		max = sycl::sqrt(max);
 		max = sycl::log (max);
-#if defined(CUDA_DEVICE) || defined(HIP_DEVICE)			
+#if (defined(CUDA_DEVICE) || defined(HIP_DEVICE) || defined(GPU_ALL))			
 		d_logSqrt[i.get_global_id(0)] = max / T;				
 	    }
 #else

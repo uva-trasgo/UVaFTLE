@@ -127,7 +127,7 @@ void create_nFacesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVert
 event create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, int* faces, int*  nFacesPerPoint, int* facesPerPoint)
 {
 return q->submit([&](handler &h){
-#if defined(CUDA_DEVICE) || defined(HIP_DEVICE)		
+#if (defined(CUDA_DEVICE) || defined(HIP_DEVICE) || defined(GPU_ALL))		
 	int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
 	h.parallel_for<class preprocess> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
 	if(i.get_global_id(0) < nPoints){

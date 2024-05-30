@@ -224,7 +224,14 @@ int main(int argc, char *argv[]) {
 		int sup = (d != nDevices-1) ? nFacesPerPoint[offsets[d+1]-1] : nFacesPerPoint[nPoints-1];
 		offsets_faces[d] = (d != 0) ? nFacesPerPoint[offsets[d]-1]: 0;
 	}
-	
+#if (defined(ONEAPI) && defined(WITH_MEM_ADVISE))
+	for(int d=0; d < nDevices; d++){
+		queues[d].mem_advise(coords, nPoints * nDim, 1);
+		queues[d].mem_advise(flowmap, nPoints * nDim, 1);
+		queues[d].mem_advise(faces, nFaces * nVertsPerFace, 1);
+		queues[d].mem_advise(nFacesPerPoint, nPoints, 1);
+	}
+#endif	
 	printf("\nComputing FTLE (SYCL USM)...");
 	struct timeval global_timer_start;
 	gettimeofday(&global_timer_start, NULL);
