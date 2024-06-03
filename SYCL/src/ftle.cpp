@@ -237,25 +237,28 @@ int main(int argc, char *argv[]) {
 		::buffer b_faces{faces, D1_RANGE(nFaces * nVertsPerFace)}; 
 		::buffer b_flowmap{flowmap, D1_RANGE(nPoints*nDim)};
 		::buffer b_nFacesPerPoint{nFacesPerPoint, D1_RANGE(nPoints)};	
-		::buffer b_faces0{facesPerPoint + offsets_faces[0], D1_RANGE(v_points_faces[0])};	
-		::buffer b_faces1{facesPerPoint + offsets_faces[1], D1_RANGE(v_points_faces[1])};	
-		::buffer b_faces2{facesPerPoint + offsets_faces[2], D1_RANGE(v_points_faces[2])};
-		::buffer b_faces3{facesPerPoint + offsets_faces[3], D1_RANGE(v_points_faces[3])};		
-		::buffer b_logSqrt0{logSqrt + offsets[0], D1_RANGE(v_points[0])};
-		::buffer b_logSqrt1{logSqrt + offsets[1], D1_RANGE(v_points[1])};		
-		::buffer b_logSqrt2{logSqrt + offsets[2], D1_RANGE(v_points[2])};
-		::buffer b_logSqrt3{logSqrt + offsets[3], D1_RANGE(v_points[3])};	
+		::buffer<int, 1> b_facesP[4] = {
+			::buffer(facesPerPoint + offsets_faces[0], 	D1_RANGE(v_points_faces[0])), 
+			::buffer(facesPerPoint + offsets_faces[1], 	D1_RANGE(v_points_faces[1])),
+			::buffer(facesPerPoint + offsets_faces[2], 	D1_RANGE(v_points_faces[2])),
+			::buffer(facesPerPoint + offsets_faces[3], 	D1_RANGE(v_points_faces[3]))
+		};
+		::buffer<double, 1> b_logSqrt[4] = {
+			::buffer(logSqrt + offsets[0], D1_RANGE(v_points[0])), 
+			::buffer(logSqrt + offsets[1], D1_RANGE(v_points[1])),
+			::buffer(logSqrt + offsets[2], D1_RANGE(v_points[2])),
+			::buffer(logSqrt + offsets[3], D1_RANGE(v_points[3]))
+		};	
 		
 		/* STEP 1: compute gradient, tensors and ATxA based on neighbors flowmap values */
 		for(int d=0; d < nDevices; d++){
-			event_list[d] = create_facesPerPoint_vector(&queues[d], nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, &b_faces, &b_nFacesPerPoint,
-			(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))));
+			event_list[d] = create_facesPerPoint_vector(&queues[d], nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, &b_faces, &b_nFacesPerPoint, &b_facesP[d]);
 		}
 		for(int d=0; d < nDevices; d++){
 			if ( nDim == 2 )
-				event_list[nDevices + d] = compute_gradient_2D ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint,(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))),(d==0 ? &b_logSqrt0 : (d==1 ? &b_logSqrt1 : (d==2 ? &b_logSqrt2 : &b_logSqrt3))), t_eval);
+				event_list[nDevices + d] = compute_gradient_2D ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, b_facesP +d, b_logSqrt+d, t_eval);
 		  	else
-				event_list[nDevices + d] = compute_gradient_3D  ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint,(d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))), (d==0 ? &b_logSqrt0 : (d==1 ? &b_logSqrt1 : (d==2 ? &b_logSqrt2 : &b_logSqrt3))), t_eval);
+				event_list[nDevices + d] = compute_gradient_3D  ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint,b_facesP +d, b_logSqrt+d, t_eval);
 		   	
 		}
 	}
