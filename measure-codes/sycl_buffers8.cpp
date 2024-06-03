@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <sycl/sycl.hpp>
 
-#include <CL/sycl.hpp>
-using namespace cl::sycl;
+using namespace sycl;
 
 void read_coordinates ( char *filename, int nDim, int nPoints, double *coords )
 {
@@ -126,12 +126,12 @@ void create_nFacesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVert
  }
 }
 
-cl::sycl::event create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, cl::sycl::buffer<int, 1> *b_faces, cl::sycl::buffer<int, 1> *b_nFacesPerPoint, cl::sycl::buffer<int, 1> *b_facesPerPoint)
+event create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, buffer<int, 1> *b_faces, buffer<int, 1> *b_nFacesPerPoint, buffer<int, 1> *b_facesPerPoint)
 {
 return q->submit([&](handler &h){
- auto faces = b_faces->get_access<access::mode::read>(h);
- auto nFacesPerPoint = b_nFacesPerPoint->get_access<access::mode::read>(h);
- auto facesPerPoint = b_facesPerPoint->get_access<access::mode::discard_write>(h);
+ accessor faces{*b_faces, h, read_only};
+ accessor nFacesPerPoint{*b_nFacesPerPoint, h, read_only};
+ accessor facesPerPoint{*b_facesPerPoint, h, write_only, no_init};
  int size = (nPoints% 512) ? (nPoints/512 +1)*512: nPoints;
  h.parallel_for<class preprocess> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
  if(i.get_global_id(0) < nPoints){
@@ -151,15 +151,15 @@ return q->submit([&](handler &h){
  }});
 });
 }
-::event compute_gradient_2D (queue* q, int nPoints, int offset, int faces_offset, int nVertsPerFace, ::buffer<double, 1> *b_coords, ::buffer<double, 1> *b_flowmap, ::buffer<int, 1> *b_faces, ::buffer<int, 1> *b_nFacesPerPoint, ::buffer<int, 1> *b_facesPerPoint, ::buffer<double, 1> *b_log_sqrt, double T )
+event compute_gradient_2D (queue* q, int nPoints, int offset, int faces_offset, int nVertsPerFace, buffer<double, 1> *b_coords, buffer<double, 1> *b_flowmap, buffer<int, 1> *b_faces, buffer<int, 1> *b_nFacesPerPoint, buffer<int, 1> *b_facesPerPoint, buffer<double, 1> *b_log_sqrt, double T )
 {
 return q->submit([&](handler &h){
- auto coords = b_coords->get_access<access::mode::read>(h);
- auto flowmap = b_flowmap->get_access<access::mode::read>(h);
- auto faces = b_faces->get_access<access::mode::read>(h);
- auto nFacesPerPoint = b_nFacesPerPoint->get_access<access::mode::read>(h);
- auto facesPerPoint = b_facesPerPoint->get_access<access::mode::read>(h);
- auto d_logSqrt = b_log_sqrt->get_access<access::mode::discard_write>(h);
+ accessor coords{*b_coords, h, read_only};
+ accessor flowmap{*b_flowmap, h, read_only};
+ accessor faces{*b_faces, h, read_only};
+ accessor nFacesPerPoint{*b_nFacesPerPoint, h, read_only};
+ accessor facesPerPoint{*b_facesPerPoint, h, read_only};
+ accessor d_logSqrt{*b_log_sqrt, h, write_only, no_init};
 
  int size = (nPoints% 512) ? (nPoints/512 +1)*512: nPoints;
  h.parallel_for<class ftle2D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
@@ -295,15 +295,15 @@ return q->submit([&](handler &h){
   double A11 = ftle_matrix[1];
   double A20 = ftle_matrix[2];
   double A21 = ftle_matrix[3];
-  double sq = cl::sycl::sqrt(A21 * A21 + A10 * A10 - 2 * (A10 * A21) + 4 * (A11 * A20));
+  double sq = sycl::sqrt(A21 * A21 + A10 * A10 - 2 * (A10 * A21) + 4 * (A11 * A20));
   d_W_ei[0] = (A21 + A10 + sq) / 2;
   d_W_ei[1] = (A21 + A10 - sq) / 2;
 
 
   double max = d_W_ei[0];
   if (d_W_ei[1] > max ) max = d_W_ei[1];
-  max = cl::sycl::sqrt(max);
-  max = cl::sycl::log (max);
+  max = sycl::sqrt(max);
+  max = sycl::log (max);
 
   d_logSqrt[i.get_global_id(0)] = max / T;
      }
@@ -311,15 +311,15 @@ return q->submit([&](handler &h){
 });
 }
 
-::event compute_gradient_3D (queue* q, int nPoints, int offset, int faces_offset, int nVertsPerFace, ::buffer<double, 1> *b_coords, ::buffer<double, 1> *b_flowmap, ::buffer<int, 1> *b_faces, ::buffer<int, 1> *b_nFacesPerPoint, ::buffer<int, 1> *b_facesPerPoint, ::buffer<double, 1> *b_log_sqrt, double T )
+event compute_gradient_3D (queue* q, int nPoints, int offset, int faces_offset, int nVertsPerFace, buffer<double, 1> *b_coords, buffer<double, 1> *b_flowmap, buffer<int, 1> *b_faces, buffer<int, 1> *b_nFacesPerPoint, buffer<int, 1> *b_facesPerPoint, buffer<double, 1> *b_log_sqrt, double T )
 {
 return q->submit([&](handler &h){
- auto coords = b_coords->get_access<access::mode::read, access::target::constant_buffer>(h);
- auto flowmap = b_flowmap->get_access<access::mode::read, access::target::constant_buffer>(h);
- auto faces = b_faces->get_access<access::mode::read, access::target::constant_buffer>(h);
- auto nFacesPerPoint = b_nFacesPerPoint->get_access<access::mode::read, access::target::constant_buffer>(h);
- auto facesPerPoint = b_facesPerPoint->get_access<access::mode::read, access::target::constant_buffer>(h);
- auto d_logSqrt = b_log_sqrt->get_access<access::mode::discard_write, access::target::global_buffer>(h);
+ accessor coords{*b_coords, h, read_only};
+ accessor flowmap{*b_flowmap, h, read_only};
+ accessor faces{*b_faces, h, read_only};
+ accessor nFacesPerPoint{*b_nFacesPerPoint, h, read_only};
+ accessor facesPerPoint{*b_facesPerPoint, h, read_only};
+ accessor d_logSqrt{*b_log_sqrt, h, write_only, no_init};
 
  int size = (nPoints% 512) ? (nPoints/512 +1)*512: nPoints;
  h.parallel_for<class ftle3D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
@@ -517,29 +517,31 @@ return q->submit([&](handler &h){
   }
   else if(del<0)
   {
-   double sqA = cl::sycl::sqrt(A);
-   double sq3 = cl::sycl::sqrt(3.0);
+   double sqA = sycl::sqrt(A);
+   double sq3 = sycl::sqrt(3.0);
    double T = (2*A*b-3*a*B) / (2*A*sqA);
-   double _xt = cl::sycl::acos(T);
+   double _xt = sycl::acos(T);
    double xt = _xt/3;
-   x1 = (-b-2*sqA*cl::sycl::cos(xt)) / (3*a);
-   x2 = (-b+sqA*(cl::sycl::cos(xt)+sq3*cl::sycl::sin(xt)))/(3*a);
-   x3 = (-b+sqA*(cl::sycl::cos(xt)-sq3*cl::sycl::sin(xt)))/(3*a);
+   x1 = (-b-2*sqA*sycl::cos(xt)) / (3*a);
+   x2 = (-b+sqA*(sycl::cos(xt)+sq3*sycl::sin(xt)))/(3*a);
+   x3 = (-b+sqA*(sycl::cos(xt)-sq3*sycl::sin(xt)))/(3*a);
   }
   double max = x1;
   if (x2 > max ) max = x2;
   if (x3 > max ) max = x3;
 
-  max = cl::sycl::sqrt(max);
-  max = cl::sycl::log (max);
+  max = sycl::sqrt(max);
+  max = sycl::log (max);
+
   d_logSqrt[i.get_global_id(0)] = max / T;
      }
  });
 });
 }
-float getKernelExecutionTime(::event event){
- auto start_time = event.get_profiling_info<::info::event_profiling::command_start>();
-  auto end_time = event.get_profiling_info<cl::sycl::info::event_profiling::command_end>();
+
+float getKernelExecutionTime(event event){
+ auto start_time = event.get_profiling_info<info::event_profiling::command_start>();
+  auto end_time = event.get_profiling_info<info::event_profiling::command_end>();
   return (end_time - start_time) / 1000000.0f;
 }
 
@@ -557,7 +559,7 @@ int main(int argc, char *argv[]) {
  fflush(stdout);
 
 
- if (argc != 8)
+ if (argc < 8)
  {
   printf("USAGE: %s <nDim> <coords_file> <faces_file> <flowmap_file> <t_eval> <print2file> <nDevices>\n", argv[0]);
   printf("\tnDim:    dimensions of the space (2D/3D)\n");
@@ -566,7 +568,7 @@ int main(int argc, char *argv[]) {
   printf("\tflowmap_file:  file where flowmap values are stored.\n");
   printf("\tt_eval:        time when compute ftle is desired.\n");
   printf("\tprint to file? (0-NO, 1-YES)\n");
-                printf("\tnDevices:       number of GPUs\n");
+  printf("\tnDevices:       number of GPUs\n");
   return 1;
  }
 
@@ -583,11 +585,11 @@ int main(int argc, char *argv[]) {
  int *nFacesPerPoint;
  int *facesPerPoint;
 
- auto property_list =::property_list{::property::queue::enable_profiling()};
+ auto m_property_list =property_list{property::queue::enable_profiling()};
  auto devs = device::get_devices(info::device_type::gpu);
  queue queues[nDevices];
  for (int d=0; d< nDevices; d++){
-   queues[d] = queue(devs[d], property_list);
+   queues[d] = queue(devs[d], m_property_list);
   }
 
  nDim = atoi(argv[1]);
@@ -654,12 +656,11 @@ int main(int argc, char *argv[]) {
  create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
  logSqrt= (double*) malloc( sizeof(double) * nPoints);
  facesPerPoint = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
- int v_points[4] = {1,1,1,1};
- int offsets[4] = {0,0,0,0};
- int v_points_faces[4] = {1,1,1,1};
- int offsets_faces[4] = {0,0,0,0};
-
- ::event event_list[nDevices*2];
+ int v_points[8] = {1,1,1,1,1,1,1,1};
+ int offsets[8] = {0,0,0,0,0,0,0,0};
+ int v_points_faces[8] = {1,1,1,1,1,1,1,1};
+ int offsets_faces[8] = {0,0,0,0,0,0,0,0};
+ event event_list[nDevices*2];
  int gap= ((nPoints / nDevices)/512)*512;
  for(int d=0; d < nDevices; d++){
   v_points[d] = (d == nDevices-1) ? nPoints - gap*d : gap;
@@ -672,34 +673,46 @@ int main(int argc, char *argv[]) {
   offsets_faces[d] = (d != 0) ? nFacesPerPoint[offsets[d]-1]: 0;
  }
 
- printf("\nComputing FTLE (SYCL)...");
+ printf("\nComputing FTLE (SYCL BUFFERS)...");
  struct timeval global_timer_start;
  gettimeofday(&global_timer_start, __null);
 
  {
-  ::buffer<double, 1> b_coords(coords, range<1>{static_cast<size_t>(nPoints * nDim)});
-  ::buffer<int, 1> b_faces(faces, range<1>{static_cast<size_t>(nFaces * nVertsPerFace)});
-  ::buffer<double, 1> b_flowmap(flowmap, range<1>{static_cast<size_t>(nPoints*nDim)});
-  ::buffer<int, 1> b_nFacesPerPoint(nFacesPerPoint, range<1>{static_cast<size_t>(nPoints)});
-  ::buffer<int, 1> b_faces0(facesPerPoint + offsets_faces[0], range<1>{static_cast<size_t>(v_points_faces[0])});
-  ::buffer<int, 1> b_faces1(facesPerPoint + offsets_faces[1], range<1>{static_cast<size_t>(v_points_faces[1])});
-  ::buffer<int, 1> b_faces2(facesPerPoint + offsets_faces[2], range<1>{static_cast<size_t>(v_points_faces[2])});
-  ::buffer<int, 1> b_faces3(facesPerPoint + offsets_faces[3], range<1>{static_cast<size_t>(v_points_faces[3])});
-  ::buffer<double, 1> b_logSqrt0(logSqrt + offsets[0], range<1>{static_cast<size_t>(v_points[0])});
-  ::buffer<double, 1> b_logSqrt1(logSqrt + offsets[1], range<1>{static_cast<size_t>(v_points[1])});
-  ::buffer<double, 1> b_logSqrt2(logSqrt + offsets[2], range<1>{static_cast<size_t>(v_points[2])});
-  ::buffer<double, 1> b_logSqrt3(logSqrt + offsets[3], range<1>{static_cast<size_t>(v_points[3])});
+
+  ::buffer b_coords{coords, range<1>{static_cast<size_t>(nPoints * nDim)}};
+  ::buffer b_faces{faces, range<1>{static_cast<size_t>(nFaces * nVertsPerFace)}};
+  ::buffer b_flowmap{flowmap, range<1>{static_cast<size_t>(nPoints*nDim)}};
+  ::buffer b_nFacesPerPoint{nFacesPerPoint, range<1>{static_cast<size_t>(nPoints)}};
+  ::buffer<int, 1> b_facesP[8] = {
+   ::buffer(facesPerPoint + offsets_faces[0], range<1>{static_cast<size_t>(v_points_faces[0])}),
+   ::buffer(facesPerPoint + offsets_faces[1], range<1>{static_cast<size_t>(v_points_faces[1])}),
+   ::buffer(facesPerPoint + offsets_faces[2], range<1>{static_cast<size_t>(v_points_faces[2])}),
+   ::buffer(facesPerPoint + offsets_faces[3], range<1>{static_cast<size_t>(v_points_faces[3])}),
+   ::buffer(facesPerPoint + offsets_faces[4], range<1>{static_cast<size_t>(v_points_faces[4])}),
+   ::buffer(facesPerPoint + offsets_faces[5], range<1>{static_cast<size_t>(v_points_faces[5])}),
+   ::buffer(facesPerPoint + offsets_faces[6], range<1>{static_cast<size_t>(v_points_faces[6])}),
+   ::buffer(facesPerPoint + offsets_faces[7], range<1>{static_cast<size_t>(v_points_faces[7])})
+  };
+  ::buffer<double, 1> b_logSqrt[8] = {
+   ::buffer(logSqrt + offsets[0], range<1>{static_cast<size_t>(v_points[0])}),
+   ::buffer(logSqrt + offsets[1], range<1>{static_cast<size_t>(v_points[1])}),
+   ::buffer(logSqrt + offsets[2], range<1>{static_cast<size_t>(v_points[2])}),
+   ::buffer(logSqrt + offsets[3], range<1>{static_cast<size_t>(v_points[3])}),
+   ::buffer(logSqrt + offsets[4], range<1>{static_cast<size_t>(v_points[4])}),
+   ::buffer(logSqrt + offsets[5], range<1>{static_cast<size_t>(v_points[5])}),
+   ::buffer(logSqrt + offsets[6], range<1>{static_cast<size_t>(v_points[6])}),
+   ::buffer(logSqrt + offsets[7], range<1>{static_cast<size_t>(v_points[7])})
+  };
 
 
   for(int d=0; d < nDevices; d++){
-  ::buffer<int, 1> *used_faces = (d==0 ? &b_faces0 : (d==1 ? &b_faces1 : (d==2 ? &b_faces2 : &b_faces3))); 
-  ::buffer<double, 1> *used_sqrt =  (d==0 ? &b_logSqrt0 : (d==1 ? &b_logSqrt1 : (d==2 ? &b_logSqrt2 : &b_logSqrt3)));
-   event_list[d] = create_facesPerPoint_vector(&queues[d], nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, &b_faces, &b_nFacesPerPoint,used_faces);
-
+   event_list[d] = create_facesPerPoint_vector(&queues[d], nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, &b_faces, &b_nFacesPerPoint, &b_facesP[d]);
+  }
+  for(int d=0; d < nDevices; d++){
    if ( nDim == 2 )
-    event_list[nDevices + d] = compute_gradient_2D ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, used_faces, used_sqrt, t_eval);
+    event_list[nDevices + d] = compute_gradient_2D ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, b_facesP +d, b_logSqrt+d, t_eval);
      else
-    event_list[nDevices + d] = compute_gradient_3D ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, used_faces, used_sqrt, t_eval);
+    event_list[nDevices + d] = compute_gradient_3D ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint,b_facesP +d, b_logSqrt+d, t_eval);
 
   }
  }
@@ -719,9 +732,9 @@ int main(int argc, char *argv[]) {
    fprintf(fp_w, "%f\n", logSqrt[ii]);
   fclose(fp_w);
   fp_w = fopen("sycl_preproc.csv", "w");
-                for ( int ii = 0; ii < nFacesPerPoint[nPoints-1]; ii++ )
-                        fprintf(fp_w, "%d\n", facesPerPoint[ii]);
-                fclose(fp_w);
+  for ( int ii = 0; ii < nFacesPerPoint[nPoints-1]; ii++ )
+   fprintf(fp_w, "%d\n", facesPerPoint[ii]);
+  fclose(fp_w);
   printf("DONE\n\n");
   printf("--------------------------------------------------------\n");
   fflush(stdout);
