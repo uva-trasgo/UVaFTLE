@@ -290,7 +290,6 @@ __global__ void gpu_compute_gradient_2D(int nPoints, int offset, int faces_offse
 
   double max = d_W_ei[0];
   if (d_W_ei[1] > max ) max = d_W_ei[1];
-
   max = sqrt(max);
   max = log (max);
   d_logSqrt[gpu_id] = max / T;
@@ -546,14 +545,12 @@ int main(int argc, char *argv[]) {
  char buffer[255];
  int nDim, nVertsPerFace, nPoints, nFaces;
  FILE *file;
- int numThreads=0;
  double *coords;
  double *flowmap;
  int *faces;
  double *logSqrt;
  int *nFacesPerPoint;
  int *facesPerPoint;
-
 
 
  cudaGetDeviceCount(&maxDevices);
@@ -648,9 +645,8 @@ int main(int argc, char *argv[]) {
 
  struct timeval global_timer_start;
  gettimeofday(&global_timer_start, __null);
-#pragma omp parallel default(none) shared(stdout, logSqrt, nDim, nPoints, nFaces, nVertsPerFace, numThreads, preproc_times, kernel_times, v_points, v_points_faces, offsets, offsets_faces, faces, coords, nFacesPerPoint, facesPerPoint, flowmap, t_eval)
+#pragma omp parallel default(none) shared(stdout, logSqrt, nDim, nPoints, nFaces, nVertsPerFace, preproc_times, kernel_times, v_points, v_points_faces, offsets, offsets_faces, faces, coords, nFacesPerPoint, facesPerPoint, flowmap, t_eval)
  {
-  numThreads = omp_get_num_threads();
   int d = omp_get_thread_num();
   double *d_logSqrt;
   double *d_coords, *d_flowmap;
@@ -738,9 +734,9 @@ int main(int argc, char *argv[]) {
    fprintf(fp_w, "%f\n", logSqrt[ii]);
   fclose(fp_w);
   fp_w = fopen("cuda_preproc.csv", "w");
-                for ( int ii = 0; ii < nFacesPerPoint[nPoints-1]; ii++ )
-                        fprintf(fp_w, "%d\n", facesPerPoint[ii]);
-                fclose(fp_w);
+  for ( int ii = 0; ii < nFacesPerPoint[nPoints-1]; ii++ )
+   fprintf(fp_w, "%d\n", facesPerPoint[ii]);
+  fclose(fp_w);
   printf("DONE\n\n");
   printf("--------------------------------------------------------\n");
   fflush(stdout);

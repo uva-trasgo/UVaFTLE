@@ -526,12 +526,6 @@ return q->submit([&](handler &h){
 });
 }
 
-float getKernelExecutionTime(event event){
- auto start_time = event.get_profiling_info<info::event_profiling::command_start>();
-  auto end_time = event.get_profiling_info<info::event_profiling::command_end>();
-  return (end_time - start_time) / 1000000.0f;
-}
-
 int main(int argc, char *argv[]) {
 
  printf("--------------------------------------------------------\n");
@@ -709,7 +703,9 @@ int main(int argc, char *argv[]) {
  printf("Execution times in miliseconds\n");
  printf("Device Num;  Preproc kernel; FTLE kernel\n");
  for(int d = 0; d < nDevices; d++){
-  printf("%d; %f; %f\n", d, getKernelExecutionTime(event_list[d]), getKernelExecutionTime(event_list[nDevices + d]));
+  float preproc =  (event_list[d].get_profiling_info<info::event_profiling::command_end>() - event_list[d].get_profiling_info<info::event_profiling::command_start>()) / 1000000.0f;
+  float ker =  (event_list[nDevices +d].get_profiling_info<info::event_profiling::command_end>() - event_list[nDevices + d].get_profiling_info<info::event_profiling::command_start>()) / 1000000.0f;
+  printf("%d; %f; %f\n", d, preproc, ker);
  }
  printf("Global time: %f:\n", time);
  printf("--------------------------------------------------------\n");

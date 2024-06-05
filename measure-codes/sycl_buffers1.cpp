@@ -304,7 +304,6 @@ return q->submit([&](handler &h){
   if (d_W_ei[1] > max ) max = d_W_ei[1];
   max = sycl::sqrt(max);
   max = sycl::log (max);
-
   d_logSqrt[i.get_global_id(0)] = max / T;
      }
  });
@@ -532,17 +531,10 @@ return q->submit([&](handler &h){
 
   max = sycl::sqrt(max);
   max = sycl::log (max);
-
   d_logSqrt[i.get_global_id(0)] = max / T;
      }
  });
 });
-}
-
-float getKernelExecutionTime(event event){
- auto start_time = event.get_profiling_info<info::event_profiling::command_start>();
-  auto end_time = event.get_profiling_info<info::event_profiling::command_end>();
-  return (end_time - start_time) / 1000000.0f;
 }
 
 int main(int argc, char *argv[]) {
@@ -726,7 +718,9 @@ int main(int argc, char *argv[]) {
  printf("Execution times in miliseconds\n");
  printf("Device Num;  Preproc kernel; FTLE kernel\n");
  for(int d = 0; d < nDevices; d++){
-  printf("%d; %f; %f\n", d, getKernelExecutionTime(event_list[d]), getKernelExecutionTime(event_list[nDevices + d]));
+  float preproc =  (event_list[d].get_profiling_info<info::event_profiling::command_end>() - event_list[d].get_profiling_info<info::event_profiling::command_start>()) / 1000000.0f;
+  float ker =  (event_list[nDevices +d].get_profiling_info<info::event_profiling::command_end>() - event_list[nDevices + d].get_profiling_info<info::event_profiling::command_start>()) / 1000000.0f;
+  printf("%d; %f; %f\n", d, preproc, ker);
  }
  printf("Global time: %f:\n", time);
  printf("--------------------------------------------------------\n");
