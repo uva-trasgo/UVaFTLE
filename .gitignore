@@ -8,8 +8,12 @@ CMakeFiles/*
 Makefile
 cmake_install.cmake
 ftle_*
+SYCL-usm/ftle-oneApi-usm
+SYCL/ftle-oneApi-buff
 *csv
 *sh
 CPU/src/*c
 CUDA/src/*c
 HIP/src/*c
+*o
+*.tar.gz

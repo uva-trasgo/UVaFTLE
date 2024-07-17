@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <sycl/sycl.hpp>
 
-#include <omp.h>
-#include <hip/hip_runtime.h>
+using namespace sycl;
 
 void read_coordinates ( char *filename, int nDim, int nPoints, double *coords )
 {
@@ -126,11 +126,16 @@ void create_nFacesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVert
  }
 }
 
-__global__ void create_facesPerPoint_vector(int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, int *faces, int *nFacesPerPoint, int *facesPerPoint )
+event create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, buffer<int, 1> *b_faces, buffer<int, 1> *b_nFacesPerPoint, buffer<int, 1> *b_facesPerPoint)
 {
- int gpu_id = blockIdx.x*blockDim.x + threadIdx.x;
- if (gpu_id < nPoints){
-  int th_id = gpu_id + offset;
+return q->submit([&](handler &h){
+ accessor faces{*b_faces, h, read_only};
+ accessor nFacesPerPoint{*b_nFacesPerPoint, h, read_only};
+ accessor facesPerPoint{*b_facesPerPoint, h, write_only, no_init};
+ int size = (nPoints% 512) ? (nPoints/512 +1)*512: nPoints;
+ h.parallel_for<class preprocess> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
+ if(i.get_global_id(0) < nPoints){
+  int th_id = i.get_global_id(0) + offset;
   int count, iface, ipf, nFacesP, iFacesP;
   count = 0;
   iFacesP = (( th_id == 0 ) ? 0 : nFacesPerPoint[th_id-1]) - faces_offset;
@@ -143,14 +148,23 @@ __global__ void create_facesPerPoint_vector(int nDim, int nPoints, int offset, i
     }
    }
   }
- }
+ }});
+});
 }
-
-__global__ void gpu_compute_gradient_2D(int nPoints, int offset, int faces_offset, int nVertsPerFace, double *coords, double *flowmap, int *faces, int *nFacesPerPoint, int *facesPerPoint, double *d_logSqrt, double T)
+event compute_gradient_2D (queue* q, int nPoints, int offset, int faces_offset, int nVertsPerFace, buffer<double, 1> *b_coords, buffer<double, 1> *b_flowmap, buffer<int, 1> *b_faces, buffer<int, 1> *b_nFacesPerPoint, buffer<int, 1> *b_facesPerPoint, buffer<double, 1> *b_log_sqrt, double T )
 {
- int gpu_id = blockIdx.x*blockDim.x + threadIdx.x;
- if (gpu_id < nPoints){
-  int th_id = gpu_id + offset;
+return q->submit([&](handler &h){
+ accessor coords{*b_coords, h, read_only};
+ accessor flowmap{*b_flowmap, h, read_only};
+ accessor faces{*b_faces, h, read_only};
+ accessor nFacesPerPoint{*b_nFacesPerPoint, h, read_only};
+ accessor facesPerPoint{*b_facesPerPoint, h, read_only};
+ accessor d_logSqrt{*b_log_sqrt, h, write_only, no_init};
+
+ int size = (nPoints% 512) ? (nPoints/512 +1)*512: nPoints;
+ h.parallel_for<class ftle2D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
+ if(i.get_global_id(0) < nPoints){
+  int th_id = i.get_global_id(0) + offset;
   int nDim = 2;
   int iface, nFaces, idxface, ivert;
   int closest_points_0 = -1;
@@ -281,24 +295,35 @@ __global__ void gpu_compute_gradient_2D(int nPoints, int offset, int faces_offse
   double A11 = ftle_matrix[1];
   double A20 = ftle_matrix[2];
   double A21 = ftle_matrix[3];
-  double sq = sqrt(A21 * A21 + A10 * A10 - 2 * (A10 * A21) + 4 * (A11 * A20));
+  double sq = sycl::sqrt(A21 * A21 + A10 * A10 - 2 * (A10 * A21) + 4 * (A11 * A20));
   d_W_ei[0] = (A21 + A10 + sq) / 2;
   d_W_ei[1] = (A21 + A10 - sq) / 2;
 
 
   double max = d_W_ei[0];
   if (d_W_ei[1] > max ) max = d_W_ei[1];
-  max = sqrt(max);
-  max = log (max);
-  d_logSqrt[gpu_id] = max / T;
- }
+  max = sycl::sqrt(max);
+  max = sycl::log (max);
+  d_logSqrt[i.get_global_id(0)] = max / T;
+     }
+ });
+});
 }
 
-__global__ void gpu_compute_gradient_3D (int nPoints, int offset, int faces_offset, int nVertsPerFace, double *coords, double *flowmap, int *faces, int *nFacesPerPoint, int *facesPerPoint, double *d_logSqrt, double T)
+event compute_gradient_3D (queue* q, int nPoints, int offset, int faces_offset, int nVertsPerFace, buffer<double, 1> *b_coords, buffer<double, 1> *b_flowmap, buffer<int, 1> *b_faces, buffer<int, 1> *b_nFacesPerPoint, buffer<int, 1> *b_facesPerPoint, buffer<double, 1> *b_log_sqrt, double T )
 {
- int gpu_id = blockIdx.x*blockDim.x + threadIdx.x;
- if (gpu_id < nPoints){
-  int th_id = gpu_id + offset;
+return q->submit([&](handler &h){
+ accessor coords{*b_coords, h, read_only};
+ accessor flowmap{*b_flowmap, h, read_only};
+ accessor faces{*b_faces, h, read_only};
+ accessor nFacesPerPoint{*b_nFacesPerPoint, h, read_only};
+ accessor facesPerPoint{*b_facesPerPoint, h, read_only};
+ accessor d_logSqrt{*b_log_sqrt, h, write_only, no_init};
+
+ int size = (nPoints% 512) ? (nPoints/512 +1)*512: nPoints;
+ h.parallel_for<class ftle3D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
+  if(i.get_global_id(0) < nPoints){
+  int th_id = i.get_global_id(0) + offset;
   int nDim = 3;
   int iface, nFaces, idxface, ivert;
   int closest_points_0 = -1;
@@ -491,23 +516,25 @@ __global__ void gpu_compute_gradient_3D (int nPoints, int offset, int faces_offs
   }
   else if(del<0)
   {
-   double sqA = sqrt(A);
-   double sq3 = sqrt(3.0);
+   double sqA = sycl::sqrt(A);
+   double sq3 = sycl::sqrt(3.0);
    double T = (2*A*b-3*a*B) / (2*A*sqA);
-   double _xt = acos(T);
+   double _xt = sycl::acos(T);
    double xt = _xt/3;
-   x1 = (-b-2*sqA*cos(xt)) / (3*a);
-   x2 = (-b+sqA*(cos(xt)+sq3*sin(xt)))/(3*a);
-   x3 = (-b+sqA*(cos(xt)-sq3*sin(xt)))/(3*a);
+   x1 = (-b-2*sqA*sycl::cos(xt)) / (3*a);
+   x2 = (-b+sqA*(sycl::cos(xt)+sq3*sycl::sin(xt)))/(3*a);
+   x3 = (-b+sqA*(sycl::cos(xt)-sq3*sycl::sin(xt)))/(3*a);
   }
   double max = x1;
   if (x2 > max ) max = x2;
   if (x3 > max ) max = x3;
 
-  max = sqrt(max);
-  max = log (max);
-  d_logSqrt[gpu_id] = max / T;
- }
+  max = sycl::sqrt(max);
+  max = sycl::log (max);
+  d_logSqrt[i.get_global_id(0)] = max / T;
+     }
+ });
+});
 }
 
 int main(int argc, char *argv[]) {
@@ -524,7 +551,7 @@ int main(int argc, char *argv[]) {
  fflush(stdout);
 
 
- if (argc != 8)
+ if (argc < 8)
  {
   printf("USAGE: %s <nDim> <coords_file> <faces_file> <flowmap_file> <t_eval> <print2file> <nDevices>\n", argv[0]);
   printf("\tnDim:    dimensions of the space (2D/3D)\n");
@@ -533,13 +560,13 @@ int main(int argc, char *argv[]) {
   printf("\tflowmap_file:  file where flowmap values are stored.\n");
   printf("\tt_eval:        time when compute ftle is desired.\n");
   printf("\tprint to file? (0-NO, 1-YES)\n");
-                printf("\tnDevices:       number of GPUs\n");
+  printf("\tnDevices:       number of GPUs\n");
   return 1;
  }
 
  double t_eval = atof(argv[5]);
  int check_EOF;
- int nDevices = atoi(argv[7]), maxDevices;
+ int nDevices = atoi(argv[7]);
  char buffer[255];
  int nDim, nVertsPerFace, nPoints, nFaces;
  FILE *file;
@@ -550,11 +577,12 @@ int main(int argc, char *argv[]) {
  int *nFacesPerPoint;
  int *facesPerPoint;
 
-
- hipGetDeviceCount(&maxDevices);
- float kernel_times[maxDevices];
- float preproc_times[maxDevices];
-
+ auto m_property_list =property_list{property::queue::enable_profiling()};
+ auto devs = device::get_devices(info::device_type::gpu);
+ queue queues[nDevices];
+ for (int d=0; d< nDevices; d++){
+   queues[d] = queue(devs[d], m_property_list);
+  }
 
  nDim = atoi(argv[1]);
  if ( nDim == 2 ) nVertsPerFace = 3;
@@ -618,14 +646,13 @@ int main(int argc, char *argv[]) {
  nFacesPerPoint = (int *) malloc( sizeof(int) * nPoints );
 
  create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
-
- hipHostMalloc( (void **) &logSqrt, sizeof(double) * nPoints);
- hipHostMalloc( (void **) &facesPerPoint, sizeof(int) * nFacesPerPoint[ nPoints - 1 ]);
-
- int v_points[maxDevices];
- int offsets[maxDevices];
- int v_points_faces[maxDevices];
- int offsets_faces[maxDevices];
+ logSqrt= (double*) malloc( sizeof(double) * nPoints);
+ facesPerPoint = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
+ int v_points[4] = {1,1,1,1};
+ int offsets[4] = {0,0,0,0};
+ int v_points_faces[4] = {1,1,1,1};
+ int offsets_faces[4] = {0,0,0,0};
+ event event_list[nDevices*2];
  int gap= ((nPoints / nDevices)/512)*512;
  for(int d=0; d < nDevices; d++){
   v_points[d] = (d == nDevices-1) ? nPoints - gap*d : gap;
@@ -638,84 +665,36 @@ int main(int argc, char *argv[]) {
   offsets_faces[d] = (d != 0) ? nFacesPerPoint[offsets[d]-1]: 0;
  }
 
-
- printf("\nComputing FTLE (HIP pinned)...");
-
+ printf("\nComputing FTLE (SYCL BUFFERS)...");
  struct timeval global_timer_start;
  gettimeofday(&global_timer_start, __null);
-#pragma omp parallel default(none) shared(stdout, logSqrt, nDim, nPoints, nFaces, nVertsPerFace, preproc_times, kernel_times, v_points, v_points_faces, offsets, offsets_faces, faces, coords, nFacesPerPoint, facesPerPoint, flowmap, t_eval)
+
  {
-  int d = omp_get_thread_num();
-  double *d_logSqrt;
-  double *d_coords, *d_flowmap;
-  int *d_faces, *d_nFacesPerPoint, *d_facesPerPoint;
 
-  hipSetDevice(d);
-
-
-  hipMalloc( &d_coords, sizeof(double) * nPoints * nDim );
-  hipMalloc( &d_faces, sizeof(int) * nFaces * nVertsPerFace );
-  hipMalloc( &d_flowmap, sizeof(double) * nPoints * nDim );
-
-
-  hipMemcpy( d_coords, coords, sizeof(double) * nPoints * nDim, hipMemcpyHostToDevice );
-  hipMemcpy( d_faces, faces, sizeof(int) * nFaces * nVertsPerFace, hipMemcpyHostToDevice );
-  hipMemcpy( d_flowmap, flowmap, sizeof(double) * nPoints * nDim, hipMemcpyHostToDevice );
+  ::buffer b_coords{coords, range<1>{static_cast<size_t>(nPoints * nDim)}};
+  ::buffer b_faces{faces, range<1>{static_cast<size_t>(nFaces * nVertsPerFace)}};
+  ::buffer b_flowmap{flowmap, range<1>{static_cast<size_t>(nPoints*nDim)}};
+  ::buffer b_nFacesPerPoint{nFacesPerPoint, range<1>{static_cast<size_t>(nPoints)}};
+  ::buffer<int, 1> b_facesP[2] = {
+   ::buffer(facesPerPoint + offsets_faces[0], range<1>{static_cast<size_t>(v_points_faces[0])}),
+   ::buffer(facesPerPoint + offsets_faces[1], range<1>{static_cast<size_t>(v_points_faces[1])})
+  };
+  ::buffer<double, 1> b_logSqrt[2] = {
+   ::buffer(logSqrt + offsets[0], range<1>{static_cast<size_t>(v_points[0])}),
+   ::buffer(logSqrt + offsets[1], range<1>{static_cast<size_t>(v_points[1])})
+  };
 
 
-  hipMalloc( &d_nFacesPerPoint, sizeof(int) * nPoints);
-  hipMalloc( &d_logSqrt, sizeof(double) * v_points[d]);
+  for(int d=0; d < nDevices; d++){
+   event_list[d] = create_facesPerPoint_vector(&queues[d], nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, &b_faces, &b_nFacesPerPoint, &b_facesP[d]);
+  }
+  for(int d=0; d < nDevices; d++){
+   if ( nDim == 2 )
+    event_list[nDevices + d] = compute_gradient_2D ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, b_facesP +d, b_logSqrt+d, t_eval);
+     else
+    event_list[nDevices + d] = compute_gradient_3D ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint,b_facesP +d, b_logSqrt+d, t_eval);
 
-
-  hipMemcpy( d_nFacesPerPoint, nFacesPerPoint, sizeof(int) * nPoints, hipMemcpyHostToDevice );
-  hipMalloc( &d_facesPerPoint, sizeof(int) * v_points_faces[d]);
-
-
-  dim3 block(512);
-  int numBlocks = (int) (ceil((double)v_points[d]/(double)block.x)+1);
-  dim3 grid_numCoords(numBlocks+1);
-
-
-  hipEvent_t start, stop;
-  hipEventCreate(&start);
-  hipEventCreate(&stop);
-
-  hipEventRecord(start, hipStreamDefault);
-
-  hipLaunchKernelGGL(create_facesPerPoint_vector, grid_numCoords,block, 0, hipStreamDefault, nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, d_faces, d_nFacesPerPoint, d_facesPerPoint);
-
-  hipEventRecord(stop, hipStreamDefault);
-  hipEventSynchronize(stop);
-  hipEventElapsedTime(preproc_times+ omp_get_thread_num() , start, stop);
-  hipEventRecord(start, hipStreamDefault);
-
-  if ( nDim == 2 )
-   hipLaunchKernelGGL(gpu_compute_gradient_2D,grid_numCoords, block, 0, hipStreamDefault, v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, d_logSqrt, t_eval);
-  else
-   hipLaunchKernelGGL(gpu_compute_gradient_3D, grid_numCoords, block, 0, hipStreamDefault, v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, d_coords, d_flowmap, d_faces, d_nFacesPerPoint, d_facesPerPoint, d_logSqrt, t_eval);
-
-  hipEventRecord(stop, hipStreamDefault);
-  hipEventSynchronize(stop);
-  hipEventElapsedTime(kernel_times + omp_get_thread_num(), start, stop);
-
-
-
-
-
-  hipMemcpyAsync (logSqrt + offsets[d], d_logSqrt, sizeof(double) * v_points[d], hipMemcpyDeviceToHost, hipStreamDefault);
-  hipMemcpyAsync (facesPerPoint + offsets_faces[d], d_facesPerPoint, sizeof(int) * v_points_faces[d], hipMemcpyDeviceToHost, hipStreamDefault);
-  hipDeviceSynchronize();
-
-
-  fflush(stdout);
-
-
-  hipFree(d_coords);
-  hipFree(d_flowmap);
-  hipFree(d_faces);
-  hipFree(d_nFacesPerPoint);
-  hipFree(d_facesPerPoint);
-  hipFree(d_logSqrt);
+  }
  }
  struct timeval global_timer_end;
  gettimeofday(&global_timer_end, __null);
@@ -728,11 +707,11 @@ int main(int argc, char *argv[]) {
  {
   printf("\nWriting result in output file...				  ");
   fflush(stdout);
-  FILE *fp_w = fopen("rocm_result.csv", "w");
+  FILE *fp_w = fopen("sycl_result.csv", "w");
   for ( int ii = 0; ii < nPoints; ii++ )
    fprintf(fp_w, "%f\n", logSqrt[ii]);
   fclose(fp_w);
-  fp_w = fopen("rocm_preproc.csv", "w");
+  fp_w = fopen("sycl_preproc.csv", "w");
   for ( int ii = 0; ii < nFacesPerPoint[nPoints-1]; ii++ )
    fprintf(fp_w, "%d\n", facesPerPoint[ii]);
   fclose(fp_w);
@@ -745,7 +724,9 @@ int main(int argc, char *argv[]) {
  printf("Execution times in miliseconds\n");
  printf("Device Num;  Preproc kernel; FTLE kernel\n");
  for(int d = 0; d < nDevices; d++){
-  printf("%d; %f; %f\n", d, preproc_times[d], kernel_times[d]);
+  float preproc =  (event_list[d].get_profiling_info<info::event_profiling::command_end>() - event_list[d].get_profiling_info<info::event_profiling::command_start>()) / 1000000.0f;
+  float ker =  (event_list[nDevices +d].get_profiling_info<info::event_profiling::command_end>() - event_list[nDevices + d].get_profiling_info<info::event_profiling::command_start>()) / 1000000.0f;
+  printf("%d; %f; %f\n", d, preproc, ker);
  }
  printf("Global time: %f:\n", time);
  printf("--------------------------------------------------------\n");
@@ -755,9 +736,8 @@ int main(int argc, char *argv[]) {
  free(coords);
  free(faces);
  free(flowmap);
- hipFree(logSqrt);
- hipFree(facesPerPoint);
-
+ free(logSqrt);
+ free(facesPerPoint);
  free(nFacesPerPoint);
 
  return 0;

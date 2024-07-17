@@ -23,8 +23,8 @@ all: compute_ftle
 # -------------------------- #
 
 compute_ftle:
-	HIPCC_VERBOSE=7   ${CC}  ${DIR_src}/ftle.cpp ${SRC} -fopenmp  -I/usr/local/cppda/include/ -L/usr/local/cppda/bin/ -I ./include -L/opt/rocm-5.4.0/lib64  -L/opt/rocm-5.4.0/lib -DPINNED -o ${DIR_bin}/ftle_rocm_pin ${FLAGS} 
-	HIPCC_VERBOSE=7   ${CC}  ${DIR_src}/ftle.cpp ${SRC} -fopenmp  -I/usr/local/cppda/include/ -L/usr/local/cppda/bin/ -I ./include -L/opt/rocm-5.4.0/lib64  -L/opt/rocm-5.4.0/lib -o ${DIR_bin}/ftle_rocm ${FLAGS} 
+	HIPCC_VERBOSE=7   ${CC}  ${DIR_src}/ftle.cpp ${SRC} -fopenmp  -D__HIP_PLATFORM_AMD__  --offload-arch=gfx900 -I ./include -L/opt/rocm/lib64  -L/opt/rocm/lib -DPINNED -o ${DIR_bin}/ftle_rocm_pin ${FLAGS} 
+	HIPCC_VERBOSE=7   ${CC}  ${DIR_src}/ftle.cpp ${SRC} -fopenmp  -D__HIP_PLATFORM_AMD__  --offload-arch=gfx900 -I ./include -L/opt/rocm/lib64  -L/opt/rocm/lib -o ${DIR_bin}/ftle_rocm ${FLAGS} 
 	
 clean:
 	cd ${DIR_bin} && rm ${OBJS} && cd ..
