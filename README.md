@@ -5,9 +5,9 @@
 # UVaFTLE: Lagrangian finite time Lyapunov exponent extraction for fluid dynamic applications
 
 UVaFTLE is an open source C implementation for determining Lagrangian Coherent Structures
-(LCS). UVaFTLE is also a parallel implementation, using OpenMP and CUDA for
-solving the problem in shared-memory multiprocessors and NVIDIA GPUS,
-respectively.
+(LCS). UVaFTLE is also a parallel implementation, using OpenMP, CUDA, HIP, and SYCL for
+solving the problem in shared-memory multiprocessors, NVIDIA GPUS, AMD GPUS, and
+heterogeneous systems, respectively.
 
 ## Compiling UVaFTLE
 
