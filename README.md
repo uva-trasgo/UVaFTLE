@@ -15,21 +15,36 @@ Package dependencies:
 
 * cmake (>= 3.8)
 * OpenMP
-* Cuda Toolkit
-
+* Cuda Toolkit 
+* ROCm Toolkit
+* SYCL compiler (tested with OneAPI 2024.1.0 and AdaptiveCpp 24.02.0)
 
 Once the package has been obtained, simply run:
 
 ```bash
 $ cd UVaFTLE
-$ cmake . -DCMAKE_INSTALL_PREFIX="installation_folder"  
+$ cmake . -DCMAKE_INSTALL_PREFIX="installation_folder"  -DUVAFTLE_OPTIONS=yes/no
 $ make
 $ make install
 ```
+The possible options to configure UVaFTLE are:
+
+
+* *-DWITH_OMP*: Enables the compilation of the OpenMP version
+* *-DWITH_CUDA*: Enables the compilation of the CUDA version
+* *-DWITH_ROCM*: Enables the compilation of the ROCm/HIP version
+* *-DWITH_SYCL_OMP*: Enables the compilation of the SYCL version using the OpenMP backend of AdaptiveCpp
+* *-DWITH_SYCL_CUDA*: Enables the compilation of the SYCL version using the CUDA backend of AdaptiveCpp
+* *-DWITH_SYCL_ROCM*: Enables the compilation of the SYCL version using the HIP backend of AdaptiveCpp
+* *-DWITH_SYCL_GENERIC*: Enables the compilation of the SYCL version using the just-in-time compiler of AdaptiveCpp
+* *-DWITH_ALL_VERSIONS*: Enables the compilation of all UvaFTLE versions 
+
 Take into account that:
 
 * If the installation folder is not set using -DCMAKE_INSTALL_PREFIX,  the executables are installed in	*UVaFTLE/bin*. 
-* If your version of CMake is 3.18 or greater, you should specify the cuda  arch using the option  "-DCUDA_ARCH=arch_code". In other case, the arch 75 is selected by default.  In order to identify your architecture, you could use [this quick quide](https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/)
+* If your version of CMake is 3.18 or greater, you should specify the cuda  arch using the option  "-DCUDA_ARCH=arch_code". In other case, the arch 75 is selected by default.  In order to identify your architecture, you could use [this quick quide](https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/).
+* If the compilation of CUDA of HIP backend using AdaptiveCpp is enabled, you must specify the target architecture in the CMakeList.txt (search for --acpp-targets flag).
+* There are specific scripts in *SYCL* and *SYCL-usm* folders for compiling the SYCL code using OneAPI DPCC++.
 
 If you have an older version of cmake, UVaFTLE can be compiled using the
 makefiles, but the *bin* directories must be created explicitly:
