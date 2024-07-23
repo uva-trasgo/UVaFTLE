@@ -5,9 +5,9 @@
 # UVaFTLE: Lagrangian finite time Lyapunov exponent extraction for fluid dynamic applications
 
 UVaFTLE is an open source C implementation for determining Lagrangian Coherent Structures
-(LCS). UVaFTLE is also a parallel implementation, using OpenMP, CUDA, HIP, and SYCL for
-solving the problem in shared-memory multiprocessors, NVIDIA GPUS, AMD GPUS, and
-heterogeneous systems, respectively.
+(LCS). UVaFTLE is also a parallel implementation, using OpenMP, CUDA, HIP, OpenCL, and SYCL for
+solving the problem in shared-memory multiprocessors, NVIDIA GPUS, AMD GPUS, Intel FPGAs
+(experimental), and heterogeneous systems, respectively.
 
 ## Compiling UVaFTLE
 
@@ -44,7 +44,7 @@ Take into account that:
 * If the installation folder is not set using -DCMAKE_INSTALL_PREFIX,  the executables are installed in	*UVaFTLE/bin*. 
 * If your version of CMake is 3.18 or greater, you should specify the cuda  arch using the option  "-DCUDA_ARCH=arch_code". In other case, the arch 75 is selected by default.  In order to identify your architecture, you could use [this quick quide](https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/).
 * If the compilation of CUDA of HIP backend using AdaptiveCpp is enabled, you must specify the target architecture in the CMakeList.txt (search for --acpp-targets flag).
-* There are specific scripts in *SYCL* and *SYCL-usm* folders for compiling the SYCL code using OneAPI DPCC++.
+* There are specific scripts in *SYCL* and *SYCL-usm* folders for compiling the SYCL code using OneAPI DPC++.
 
 If you have an older version of cmake, UVaFTLE can be compiled using the
 makefiles, but the *bin* directories must be created explicitly:
