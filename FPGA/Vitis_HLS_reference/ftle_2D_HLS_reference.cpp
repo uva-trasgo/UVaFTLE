@@ -23,15 +23,15 @@
 ////////////////////////////////////////////////// 
 ////////////////////////////////////////////////// 
 //                                              //
-//	File:   ftle_2D_reference.cpp				//
+//  File:   ftle_2D_reference.cpp               //
 //                                              //
 //  Authors:                                    //
 //          Roberto Rodríguez Osorio            //
 //          University of A Coruña, Spain       //
-//	        ORCID:  0000-0001-8768-2240         //
-//	        Manuel de Castro Caballero          //
-//	        University of Valladolid, Spain     //
-//	        ORCID:  0000-0003-3080-5136         //
+//          ORCID:  0000-0001-8768-2240         //
+//          Manuel de Castro Caballero          //
+//          University of Valladolid, Spain     //
+//          ORCID:  0000-0003-3080-5136         //
 //                                              //
 ////////////////////////////////////////////////// 
 ////////////////////////////////////////////////// 
