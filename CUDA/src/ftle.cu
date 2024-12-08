@@ -175,12 +175,31 @@ int main(int argc, char *argv[]) {
 	nFacesPerPoint = (int *) malloc( sizeof(int) * nPoints ); /* REMARK: nFacesPerPoint accumulates previous nFacesPerPoint */
 	// Assign faces to vertices and generate nFacesPerPoint and facesPerPoint GPU vectors  
 	create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
+
+	    // Compute total number of face indices (totalFacesPerPoint)
+	int totalFacesPerPoint = nFacesPerPoint[nPoints - 1];
+
+	// Prepare startIndices (same as nFacesPerPoint shifted by one position)
+	int *startIndices = (int *) malloc( sizeof(int) * nPoints );
+	startIndices[0] = 0;
+	for (int i = 1; i < nPoints; i++)
+	{
+	startIndices[i] = nFacesPerPoint[i - 1];
+	}
+
+	// Initialize writeIndices
+	int *writeIndices = (int *) malloc( sizeof(int) * nPoints );
+	memset(writeIndices, 0, sizeof(int) * nPoints);
+
+	// Allocate facesPerPoint
+	facesPerPoint = (int *) malloc( sizeof(int) * totalFacesPerPoint );
+
 #ifdef PINNED
 	cudaHostAlloc( (void **) &logSqrt, sizeof(double) * nPoints, cudaHostAllocMapped);
-	cudaHostAlloc( (void **) &facesPerPoint, sizeof(int) * nFacesPerPoint[ nPoints - 1 ], cudaHostAllocMapped);
+	cudaHostAlloc( (void **) &facesPerPoint, sizeof(int) * totalFacesPerPoint, cudaHostAllocMapped);
 #else
 	logSqrt= (double*) malloc( sizeof(double) * nPoints);
-	facesPerPoint = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
+	facesPerPoint = (int *) malloc( sizeof(int) * totalFacesPerPoint);
 #endif
 	
 	
@@ -208,13 +227,13 @@ int main(int argc, char *argv[]) {
 #endif
 	struct timeval global_timer_start;
 	gettimeofday(&global_timer_start, NULL);
-	#pragma omp parallel default(none)  shared(stdout, logSqrt, nDim, nPoints, nFaces, nVertsPerFace, numThreads, preproc_times, kernel_times, v_points, v_points_faces, offsets, offsets_faces, faces, coords, nFacesPerPoint, facesPerPoint, flowmap, t_eval)  
+	#pragma omp parallel default(none) shared(stdout, logSqrt, nDim, nPoints, nFaces, nVertsPerFace, numThreads, preproc_times, kernel_times, v_points, v_points_faces, offsets, offsets_faces, faces, coords, nFacesPerPoint, facesPerPoint, flowmap, t_eval, startIndices, totalFacesPerPoint)
 	{
 		numThreads = omp_get_num_threads();
 		int d = omp_get_thread_num();
 		double *d_logSqrt;
 		double *d_coords, *d_flowmap;
-		int *d_faces, *d_nFacesPerPoint, *d_facesPerPoint;
+		int *d_faces, *d_nFacesPerPoint, *d_facesPerPoint, *d_startIndices, *d_writeIndices;
 
 		cudaSetDevice(d);
 
@@ -230,16 +249,20 @@ int main(int argc, char *argv[]) {
 
 		/* Allocate additional memory at the GPU */
 		cudaMalloc( &d_nFacesPerPoint, sizeof(int)	* nPoints);
+		cudaMalloc( &d_startIndices,   sizeof(int) * nPoints );
+		cudaMalloc( &d_writeIndices,   sizeof(int) * nPoints );
+		cudaMalloc( &d_facesPerPoint,  sizeof(int) * totalFacesPerPoint );
 		cudaMalloc( &d_logSqrt,		sizeof(double) * v_points[d]); 
 
 		/* Copy data to GPU */
 		cudaMemcpy( d_nFacesPerPoint, nFacesPerPoint, sizeof(int) * nPoints,	cudaMemcpyHostToDevice );
-		cudaMalloc( &d_facesPerPoint, sizeof(int) * v_points_faces[d]);		
+		cudaMemcpy( d_startIndices,   startIndices,   sizeof(int) * nPoints,  cudaMemcpyHostToDevice );
+		cudaMemset( d_writeIndices,   0,              sizeof(int) * nPoints );
 
 		/* Create dim3 for GPU */
 		dim3 block(BLOCK);
-		int numBlocks = (int) (ceil((double)v_points[d]/(double)block.x)+1);
-		dim3 grid_numCoords(numBlocks+1);
+		int numBlocks = (int) (ceil((double)nFaces/(double)block.x));
+		dim3 grid_numCoords(numBlocks);
 
 		//Create Cuda events
 		cudaEvent_t start, stop;
@@ -248,7 +271,14 @@ int main(int argc, char *argv[]) {
 		//Launch preproccesing kernel
 		cudaEventRecord(start, cudaStreamDefault);
 		/* STEP 1: compute gradient, tensors and ATxA based on neighbors flowmap values */
-		create_facesPerPoint_vector<<<grid_numCoords, block, 0, cudaStreamDefault>>> (nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, d_faces, d_nFacesPerPoint, d_facesPerPoint);
+		create_facesPerPoint_vector_opt<<<grid_numCoords, block, 0, cudaStreamDefault>>> (
+		    nFaces,
+		    nVertsPerFace,
+		    d_faces,
+		    d_startIndices,
+		    d_writeIndices,
+		    d_facesPerPoint
+		);
 
 		cudaEventRecord(stop, cudaStreamDefault);
 		cudaEventSynchronize(stop);
@@ -298,7 +328,7 @@ int main(int argc, char *argv[]) {
 			fprintf(fp_w, "%f\n", logSqrt[ii]);
 		fclose(fp_w);
 		fp_w = fopen("cuda_preproc.csv", "w");
-                for ( int ii = 0; ii < nFacesPerPoint[nPoints-1]; ii++ )
+                for ( int ii = 0; ii < totalFacesPerPoint; ii++ )
                         fprintf(fp_w, "%d\n", facesPerPoint[ii]);
                 fclose(fp_w);
 		printf("DONE\n\n");
@@ -320,13 +350,10 @@ int main(int argc, char *argv[]) {
 	free(coords);
 	free(faces);
 	free(flowmap);
-#ifndef PINNED			
-	free(logSqrt);
-	free(facesPerPoint);
-#else
 	cudaFree(logSqrt);
 	cudaFree(facesPerPoint);
-#endif
+	free(startIndices);
+	free(writeIndices);
 	free(nFacesPerPoint);
 
 	return 0;

@@ -27,5 +27,13 @@ void read_coordinates ( char *filename, int nDim, int npoints, double *coords );
 void read_faces ( char *filename, int nDim, int nVertsPerFace, int nfaces, int *faces );
 void read_flowmap ( char *filename, int nDims, int nPoints, double *flowmap );
 void create_nFacesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVertsPerFace, int *faces, int *nFacesPerPoint );
+__global__ void create_facesPerPoint_vector_opt(
+    int nFaces,
+    int nVertsPerFace,
+    const int *faces,          // Input: Faces array
+    const int *startIndices,   // Input: Start index in facesPerPoint for each point
+    int *writeIndices,         // In/Out: Current write index for each point
+    int *facesPerPoint         // Output: Faces per point
+);
 __global__ void create_facesPerPoint_vector (int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, int *faces, int *nFacesPerPoint, int *facesPerPoint );
 
