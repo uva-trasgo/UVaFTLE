@@ -24,6 +24,7 @@ all: compute_ftle
 
 compute_ftle:
 	HIPCC_VERBOSE=7   ${CC}  ${DIR_src}/ftle.cpp ${SRC} -fopenmp  -D__HIP_PLATFORM_AMD__  --offload-arch=gfx900 -I ./include -L/opt/rocm/lib64  -L/opt/rocm/lib -DPINNED -o ${DIR_bin}/ftle_rocm_pin ${FLAGS} 
+	HIPCC_VERBOSE=7   ${CC}  ${DIR_src}/ftle.cpp ${SRC} -fopenmp  -D__HIP_PLATFORM_AMD__  --offload-arch=gfx900 -I ./include -L/opt/rocm/lib64  -L/opt/rocm/lib -DMANAGED=1 -o ${DIR_bin}/ftle_rocm_managed ${FLAGS} 
 	HIPCC_VERBOSE=7   ${CC}  ${DIR_src}/ftle.cpp ${SRC} -fopenmp  -D__HIP_PLATFORM_AMD__  --offload-arch=gfx900 -I ./include -L/opt/rocm/lib64  -L/opt/rocm/lib -o ${DIR_bin}/ftle_rocm ${FLAGS} 
 	
 clean:

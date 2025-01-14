@@ -139,6 +139,148 @@ int main(int argc, char *argv[]) {
 	}
 	nPoints = atoi(buffer);
 	fclose(file);
+#ifdef MANAGED
+	hipMallocManaged (&coords, sizeof(double) * nPoints * nDim );
+	read_coordinates(argv[2], nDim, nPoints, coords); 
+	printf("DONE\n"); 
+	fflush(stdout);
+
+	/* Read faces information */
+	printf("\tReading mesh faces vertices...			"); 
+	fflush(stdout);
+	file = fopen( argv[3], "r" );
+	check_EOF = fscanf(file, "%s", buffer);
+	if ( check_EOF == EOF )
+	{
+		fprintf( stderr, "Error: Unexpected EOF in read_faces\n" ); 
+		fflush(stdout);
+		exit(-1);
+	}
+	nFaces = atoi(buffer);
+	hipMallocManaged(&faces, sizeof(int) * nFaces * nVertsPerFace );
+	read_faces(argv[3], nDim, nVertsPerFace, nFaces, faces); 
+	printf("DONE\n"); 
+	fflush(stdout);
+
+	/* Read flowmap information */
+	printf("\tReading mesh flowmap (x, y[, z])...	   "); 
+	fflush(stdout);
+	hipMallocManaged(&flowmap, sizeof(double) * nPoints * nDim ); 
+	read_flowmap ( argv[4], nDim, nPoints, flowmap );
+	printf("DONE\n\n"); 
+	printf("--------------------------------------------------------\n"); 
+	fflush(stdout);
+
+	/* Allocate additional memory at the CPU */
+	hipMallocManaged(&nFacesPerPoint, sizeof(int) * nPoints ); /* REMARK: nFacesPerPoint accumulates previous nFacesPerPoint */
+	// Assign faces to vertices and generate nFacesPerPoint and facesPerPoint GPU vectors  
+	create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
+
+	hipMallocManaged(&logSqrt, sizeof(double) * nPoints);
+	hipMallocManaged(&facesPerPoint, sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
+	
+	
+	int v_points[maxDevices];
+	int offsets[maxDevices];
+	int v_points_faces[maxDevices];
+	int offsets_faces[maxDevices];
+	int gap= ((nPoints / nDevices)/BLOCK)*BLOCK;
+	for(int d=0; d < nDevices; d++){
+		v_points[d] = (d == nDevices-1) ? nPoints - gap*d : gap; 
+		offsets[d] = gap*d;
+	}
+	for(int d=0; d < nDevices; d++){
+		int inf = (d != 0) ? nFacesPerPoint[offsets[d]-1] : 0;
+		int sup = (d != nDevices-1) ? nFacesPerPoint[offsets[d+1]-1] : nFacesPerPoint[nPoints-1];
+		v_points_faces[d] =  sup - inf;
+		offsets_faces[d] = (d != 0) ? nFacesPerPoint[offsets[d]-1]: 0;
+	}
+	
+
+	printf("\nComputing FTLE (HIP Managed)...");
+	struct timeval global_timer_start;
+	gettimeofday(&global_timer_start, NULL);
+	#pragma omp parallel default(none)  shared(stdout, logSqrt, nDim, nPoints, nFaces, nVertsPerFace, numThreads, preproc_times, kernel_times, v_points, v_points_faces, offsets, offsets_faces, faces, coords, nFacesPerPoint, facesPerPoint, flowmap, t_eval)  
+	{
+		numThreads = omp_get_num_threads();
+		int d = omp_get_thread_num();
+		hipSetDevice(d);
+		/* Create dim3 for GPU */
+		dim3 block(BLOCK);
+		int numBlocks = (int) (ceil((double)v_points[d]/(double)block.x)+1);
+		dim3 grid_numCoords(numBlocks+1);
+
+		//Create hip events
+		hipEvent_t start, stop;
+		hipEventCreate(&start);
+		hipEventCreate(&stop);  	
+		//Launch preproccesing kernel
+		hipEventRecord(start, hipStreamDefault);
+		/* STEP 1: compute gradient, tensors and ATxA based on neighbors flowmap values */
+		int* d_facesPerPoint = facesPerPoint + offsets_faces[d];
+		double* d_logSqrt = logSqrt + offsets[d];
+		create_facesPerPoint_vector<<<grid_numCoords, block, 0, hipStreamDefault>>> (nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, faces, nFacesPerPoint, d_facesPerPoint);
+
+		hipEventRecord(stop, hipStreamDefault);
+		hipEventSynchronize(stop);
+		hipEventElapsedTime(preproc_times+ omp_get_thread_num() , start, stop);
+		hipEventRecord(start, hipStreamDefault);
+		if ( nDim == 2 )
+			gpu_compute_gradient_2D <<<grid_numCoords, block, 0, hipStreamDefault>>> (v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, coords, flowmap, faces, nFacesPerPoint, d_facesPerPoint, d_logSqrt, t_eval);
+		else
+			gpu_compute_gradient_3D <<<grid_numCoords, block, 0, hipStreamDefault>>> (v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, coords, flowmap, faces, nFacesPerPoint, d_facesPerPoint, d_logSqrt, t_eval);
+
+		hipEventRecord(stop, hipStreamDefault);
+		hipEventSynchronize(stop);
+		hipEventElapsedTime(kernel_times + omp_get_thread_num(), start, stop);
+		hipDeviceSynchronize();
+
+		
+		fflush(stdout);
+	}
+	struct timeval global_timer_end;
+	gettimeofday(&global_timer_end, NULL);
+	double time = (global_timer_end.tv_sec - global_timer_start.tv_sec) + (global_timer_end.tv_usec - global_timer_start.tv_usec)/1000000.0;
+	printf("DONE\n\n");
+	printf("--------------------------------------------------------\n");
+	fflush(stdout);
+	/* Write result in output file (if desired) */
+	if ( atoi(argv[6]) )
+	{
+		printf("\nWriting result in output file...				  ");
+		fflush(stdout);
+		FILE *fp_w = fopen("hip_result.csv", "w");
+		for ( int ii = 0; ii < nPoints; ii++ )
+			fprintf(fp_w, "%f\n", logSqrt[ii]);
+		fclose(fp_w);
+		fp_w = fopen("hip_preproc.csv", "w");
+                for ( int ii = 0; ii < nFacesPerPoint[nPoints-1]; ii++ )
+                        fprintf(fp_w, "%d\n", facesPerPoint[ii]);
+                fclose(fp_w);
+		printf("DONE\n\n");
+		printf("--------------------------------------------------------\n");
+		fflush(stdout);
+	}
+
+	/* Show execution time */
+	printf("Execution times in miliseconds\n");
+	printf("Device Num;  Preproc kernel; FTLE kernel\n");
+	for(int d = 0; d < nDevices; d++){
+		printf("%d; %f; %f\n", d, preproc_times[d], kernel_times[d]);
+	}
+	printf("Global time: %f:\n", time);
+	printf("--------------------------------------------------------\n");
+	fflush(stdout);
+	
+		
+	/* Free memory */
+	hipFree(coords);
+	hipFree(flowmap);
+	hipFree(faces);
+	hipFree(nFacesPerPoint);
+	hipFree(facesPerPoint);
+	hipFree(logSqrt);
+#else	
 	coords = (double *) malloc ( sizeof(double) * nPoints * nDim );
 	read_coordinates(argv[2], nDim, nPoints, coords); 
 	printf("DONE\n"); 
@@ -328,6 +470,6 @@ int main(int argc, char *argv[]) {
 	hipFree(facesPerPoint);
 #endif
 	free(nFacesPerPoint);
-
+#endif
 	return 0;
 }
