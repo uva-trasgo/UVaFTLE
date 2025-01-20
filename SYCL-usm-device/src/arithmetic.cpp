@@ -20,17 +20,15 @@
  *  along with UVaFTLE.  If not, see <http://www.gnu.org/licenses/>.
  */ 
 #include "arithmetic.h"
-::event compute_gradient_2D (::event* dep_event, queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, double* coords, double* flowmap, int* faces, int* nFacesPerPoint, int* facesPerPoint, double* logSqrt, double T )	
+::event compute_gradient_2D (queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, double* coords, double* flowmap, int* faces, int* nFacesPerPoint, int* facesPerPoint, double* logSqrt, double T )	
 {
-return q->submit([&](handler &h){
-	//h.depends_on(*dep_event);	
 #if (defined(CUDA_DEVICE) || defined(HIP_DEVICE) || defined(GPU_ALL))
 	int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
-	h.parallel_for<class ftle2D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
+	return q->parallel_for<class ftle2D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
 	if(i.get_global_id(0) < nPoints){
 		int th_id = i.get_global_id(0) + offset;
 #else
-	h.parallel_for<class ftle2D> (range<1>{static_cast<size_t>(nPoints)}, [=](id<1> i){
+	return q->parallel_for<class ftle2D> (range<1>{static_cast<size_t>(nPoints)}, [=](id<1> i){
 		int th_id = i[0] + offset;
 #endif		
 		int nDim = 2; 
@@ -179,20 +177,17 @@ return q->submit([&](handler &h){
 		logSqrt[i[0]] = max / T;		
 #endif		    	
 	}); /*End parallel for*/
-}); /*End submit*/	
 }
 
-::event compute_gradient_3D (::event* dep_event, queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, double* coords, double* flowmap, int* faces, int* nFacesPerPoint, int* facesPerPoint, double* logSqrt, double T )
+::event compute_gradient_3D (queue* q,  int nPoints, int offset, int faces_offset, int nVertsPerFace, double* coords, double* flowmap, int* faces, int* nFacesPerPoint, int* facesPerPoint, double* logSqrt, double T )
 {
-return q->submit([&](handler &h){
-	//h.depends_on(*dep_event);
 #if (defined(CUDA_DEVICE) || defined(HIP_DEVICE) || defined(GPU_ALL))		
 	int size = (nPoints% BLOCK) ? (nPoints/BLOCK+1)*BLOCK: nPoints;
-	h.parallel_for<class ftle3D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
+	return q->parallel_for<class ftle3D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(BLOCK)}), [=](nd_item<1> i){
 		if(i.get_global_id(0) < nPoints){
 		int th_id = i.get_global_id(0) + offset;
 #else
-	h.parallel_for<class ftle3D> (range<1>{static_cast<size_t>(nPoints)}, [=](id<1> i){
+	return q->parallel_for<class ftle3D> (range<1>{static_cast<size_t>(nPoints)}, [=](id<1> i){
 		int th_id = i[0] + offset;
 #endif	
 		int nDim = 3; 
@@ -408,6 +403,5 @@ return q->submit([&](handler &h){
 #else
 		logSqrt[i[0]] = max / T;
 #endif
-	}); /*End parallel for*/
-}); /*End submit*/	
+	}); /*End parallel for*/	
 }

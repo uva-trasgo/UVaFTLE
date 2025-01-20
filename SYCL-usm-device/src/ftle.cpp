@@ -280,9 +280,9 @@ int main(int argc, char *argv[]) {
 		}
 		for(int d=0; d < nDevices; d++){	
 			if ( nDim == 2 )
-				event_list[nDevices + d] = compute_gradient_2D ( &event_list[d], &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, d_coords[d], d_flowmap[d], d_faces[d], d_nFacesPerPoint[d],d_facesPerPoint[d],d_logSqrt[d], t_eval);
+				event_list[nDevices + d] = compute_gradient_2D (&queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, d_coords[d], d_flowmap[d], d_faces[d], d_nFacesPerPoint[d],d_facesPerPoint[d],d_logSqrt[d], t_eval);
 		  	else
-				event_list[nDevices + d] = compute_gradient_3D  ( &event_list[d], &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, d_coords[d], d_flowmap[d], d_faces[d], d_nFacesPerPoint[d],d_facesPerPoint[d],d_logSqrt[d], t_eval);
+				event_list[nDevices + d] = compute_gradient_3D  (&queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, d_coords[d], d_flowmap[d], d_faces[d], d_nFacesPerPoint[d],d_facesPerPoint[d],d_logSqrt[d], t_eval);
 		}
 		for(int d=0; d < nDevices; d++){	 	
 			queues[d].memcpy(logSqrt +offsets[d],  d_logSqrt[d], sizeof(double) * v_points[d]);

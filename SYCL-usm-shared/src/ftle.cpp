@@ -45,7 +45,7 @@ float getKernelExecutionTime(event event){
 }
 
 std::vector<queue> get_queues_from_platform(int plat, int nDevices, int device_order){
-	auto my_property_list =property_list{ property::queue::enable_profiling()};
+	auto my_property_list =property_list{ property::queue::enable_profiling(),  property::queue::in_order()};
 	if(plat == OMP_PLATFORM)
 	{
 		std::vector<queue> queues(1);
@@ -268,13 +268,13 @@ int main(int argc, char *argv[]) {
 			int* p_faces = facesPerPoint + offsets_faces[d];
 			double* p_logSqrt = logSqrt + offsets[d];
 			if ( nDim == 2 )
-				event_list[nDevices + d] = compute_gradient_2D ( &event_list[d], &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, coords, flowmap, faces, nFacesPerPoint,p_faces,p_logSqrt, t_eval);
+				event_list[nDevices + d] = compute_gradient_2D (&queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, coords, flowmap, faces, nFacesPerPoint,p_faces,p_logSqrt, t_eval);
 		  	else
-				event_list[nDevices + d] = compute_gradient_3D  ( &event_list[d], &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, coords, flowmap, faces, nFacesPerPoint,p_faces, p_logSqrt, t_eval);
+				event_list[nDevices + d] = compute_gradient_3D  (&queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, coords, flowmap, faces, nFacesPerPoint,p_faces, p_logSqrt, t_eval);
 		   	
 		}
 		for(int d=0; d < nDevices; d++)
-			event_list[nDevices + d].wait();
+			queues[d].wait();
 	}
 	struct timeval global_timer_end;
 	gettimeofday(&global_timer_end, NULL);
