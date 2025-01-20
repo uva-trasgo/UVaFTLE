@@ -542,7 +542,6 @@ int main(int argc, char *argv[]) {
  printf("|  - Sergio López-Huguet  | serlohu@upv.es             |\n");
  printf("|  - Francisco J. Andújar | fandujarm@infor.uva.es     |\n");
  printf("--------------------------------------------------------\n");
- fflush(stdout);
 
 
  if (argc != 8)
@@ -591,57 +590,48 @@ int main(int argc, char *argv[]) {
 
 
  printf("\nReading input data\n\n");
- fflush(stdout);
  printf("\tReading mesh points coordinates...		");
- fflush(stdout);
  file = fopen( argv[2], "r" );
  check_EOF = fscanf(file, "%s", buffer);
  if ( check_EOF == (-1) )
  {
   fprintf( stderr, "Error: Unexpected EOF in read_coordinates\n" );
-  fflush(stdout);
-  exit(-1);
+   exit(-1);
  }
  nPoints = atoi(buffer);
  fclose(file);
  coords = (double *) malloc ( sizeof(double) * nPoints * nDim );
  read_coordinates(argv[2], nDim, nPoints, coords);
  printf("DONE\n");
- fflush(stdout);
 
 
  printf("\tReading mesh faces vertices...			");
- fflush(stdout);
  file = fopen( argv[3], "r" );
  check_EOF = fscanf(file, "%s", buffer);
  if ( check_EOF == (-1) )
  {
   fprintf( stderr, "Error: Unexpected EOF in read_faces\n" );
-  fflush(stdout);
-  exit(-1);
+   exit(-1);
  }
  nFaces = atoi(buffer);
  faces = (int *) malloc ( sizeof(int) * nFaces * nVertsPerFace );
  read_faces(argv[3], nDim, nVertsPerFace, nFaces, faces);
  printf("DONE\n");
- fflush(stdout);
 
 
  printf("\tReading mesh flowmap (x, y[, z])...	   ");
- fflush(stdout);
  flowmap = (double*) malloc( sizeof(double) * nPoints * nDim );
  read_flowmap ( argv[4], nDim, nPoints, flowmap );
  printf("DONE\n\n");
  printf("--------------------------------------------------------\n");
- fflush(stdout);
 
 
  nFacesPerPoint = (int *) malloc( sizeof(int) * nPoints );
 
  create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
 
- hipHostMalloc( (void **) &logSqrt, sizeof(double) * nPoints);
- hipHostMalloc( (void **) &facesPerPoint, sizeof(int) * nFacesPerPoint[ nPoints - 1 ]);
+ logSqrt= (double*) malloc( sizeof(double) * nPoints);
+ facesPerPoint = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
 
  int v_points[maxDevices];
  int offsets[maxDevices];
@@ -660,7 +650,7 @@ int main(int argc, char *argv[]) {
  }
 
 
- printf("\nComputing FTLE (HIP pinned)...");
+ printf("\nComputing FTLE (HIP)...");
 
  struct timeval global_timer_start;
  gettimeofday(&global_timer_start, __null);
@@ -673,24 +663,18 @@ int main(int argc, char *argv[]) {
 
   hipSetDevice(d);
 
-
   hipMalloc( &d_coords, sizeof(double) * nPoints * nDim );
   hipMalloc( &d_faces, sizeof(int) * nFaces * nVertsPerFace );
   hipMalloc( &d_flowmap, sizeof(double) * nPoints * nDim );
 
-
   hipMemcpy( d_coords, coords, sizeof(double) * nPoints * nDim, hipMemcpyHostToDevice );
   hipMemcpy( d_faces, faces, sizeof(int) * nFaces * nVertsPerFace, hipMemcpyHostToDevice );
   hipMemcpy( d_flowmap, flowmap, sizeof(double) * nPoints * nDim, hipMemcpyHostToDevice );
-
-
   hipMalloc( &d_nFacesPerPoint, sizeof(int) * nPoints);
   hipMalloc( &d_logSqrt, sizeof(double) * v_points[d]);
 
-
   hipMemcpy( d_nFacesPerPoint, nFacesPerPoint, sizeof(int) * nPoints, hipMemcpyHostToDevice );
   hipMalloc( &d_facesPerPoint, sizeof(int) * v_points_faces[d]);
-
 
   dim3 block(512);
   int numBlocks = (int) (ceil((double)v_points[d]/(double)block.x)+1);
@@ -700,7 +684,6 @@ int main(int argc, char *argv[]) {
   hipEvent_t start, stop;
   hipEventCreate(&start);
   hipEventCreate(&stop);
-
   hipEventRecord(start, hipStreamDefault);
 
   hipLaunchKernelGGL(create_facesPerPoint_vector, grid_numCoords,block, 0, hipStreamDefault, nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, d_faces, d_nFacesPerPoint, d_facesPerPoint);
@@ -719,18 +702,9 @@ int main(int argc, char *argv[]) {
   hipEventSynchronize(stop);
   hipEventElapsedTime(kernel_times + omp_get_thread_num(), start, stop);
 
-
-
-
-
-  hipMemcpyAsync (logSqrt + offsets[d], d_logSqrt, sizeof(double) * v_points[d], hipMemcpyDeviceToHost, hipStreamDefault);
-  hipMemcpyAsync (facesPerPoint + offsets_faces[d], d_facesPerPoint, sizeof(int) * v_points_faces[d], hipMemcpyDeviceToHost, hipStreamDefault);
-  hipDeviceSynchronize();
-
-
-  fflush(stdout);
-
-
+  hipMemcpy (logSqrt +offsets[d],  d_logSqrt, sizeof(double) * v_points[d], hipMemcpyDeviceToHost);
+  hipMemcpy(facesPerPoint + offsets_faces[d], d_facesPerPoint,  sizeof(int) * v_points_faces[d], hipMemcpyDeviceToHost );	
+ 
   hipFree(d_coords);
   hipFree(d_flowmap);
   hipFree(d_faces);
@@ -738,18 +712,17 @@ int main(int argc, char *argv[]) {
   hipFree(d_facesPerPoint);
   hipFree(d_logSqrt);
  }
+
  struct timeval global_timer_end;
  gettimeofday(&global_timer_end, __null);
  double time = (global_timer_end.tv_sec - global_timer_start.tv_sec) + (global_timer_end.tv_usec - global_timer_start.tv_usec)/1000000.0;
  printf("DONE\n\n");
  printf("--------------------------------------------------------\n");
- fflush(stdout);
 
  if ( atoi(argv[6]) )
  {
   printf("\nWriting result in output file...				  ");
-  fflush(stdout);
-  FILE *fp_w = fopen("rocm_result.csv", "w");
+   FILE *fp_w = fopen("rocm_result.csv", "w");
   for ( int ii = 0; ii < nPoints; ii++ )
    fprintf(fp_w, "%f\n", logSqrt[ii]);
   fclose(fp_w);
@@ -759,9 +732,7 @@ int main(int argc, char *argv[]) {
   fclose(fp_w);
   printf("DONE\n\n");
   printf("--------------------------------------------------------\n");
-  fflush(stdout);
- }
-
+  }
 
  printf("Execution times in miliseconds\n");
  printf("Device Num;  Preproc kernel; FTLE kernel\n");
@@ -770,15 +741,12 @@ int main(int argc, char *argv[]) {
  }
  printf("Global time: %f:\n", time);
  printf("--------------------------------------------------------\n");
- fflush(stdout);
-
 
  free(coords);
  free(faces);
  free(flowmap);
- hipFree(logSqrt);
- hipFree(facesPerPoint);
-
+ free(logSqrt);
+ free(facesPerPoint);
  free(nFacesPerPoint);
 
  return 0;
