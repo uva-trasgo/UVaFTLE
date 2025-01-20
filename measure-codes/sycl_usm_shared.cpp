@@ -147,14 +147,10 @@ void create_nFacesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVert
  }
 }
 
-event create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, buffer<int, 1> *b_faces, buffer<int, 1> *b_nFacesPerPoint, buffer<int, 1> *b_facesPerPoint)
+event create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, int* faces, int* nFacesPerPoint, int* facesPerPoint)
 {
-return q->submit([&](handler &h){
- accessor faces{*b_faces, h, read_only};
- accessor nFacesPerPoint{*b_nFacesPerPoint, h, read_only};
- accessor facesPerPoint{*b_facesPerPoint, h, write_only, no_init};
- int size = (nPoints% 512) ? (nPoints/512 +1)*512: nPoints;
- h.parallel_for<class preprocess> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
+int size = (nPoints% 512) ? (nPoints/512 +1)*512: nPoints;
+return q->parallel_for<class preprocess> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
  if(i.get_global_id(0) < nPoints){
   int th_id = i.get_global_id(0) + offset;
   int count, iface, ipf, nFacesP, iFacesP;
@@ -170,20 +166,12 @@ return q->submit([&](handler &h){
    }
   }
  }});
-});
 }
-event compute_gradient_2D (queue* q, int nPoints, int offset, int faces_offset, int nVertsPerFace, buffer<double, 1> *b_coords, buffer<double, 1> *b_flowmap, buffer<int, 1> *b_faces, buffer<int, 1> *b_nFacesPerPoint, buffer<int, 1> *b_facesPerPoint, buffer<double, 1> *b_log_sqrt, double T )
-{
-return q->submit([&](handler &h){
- accessor coords{*b_coords, h, read_only};
- accessor flowmap{*b_flowmap, h, read_only};
- accessor faces{*b_faces, h, read_only};
- accessor nFacesPerPoint{*b_nFacesPerPoint, h, read_only};
- accessor facesPerPoint{*b_facesPerPoint, h, read_only};
- accessor d_logSqrt{*b_log_sqrt, h, write_only, no_init};
 
+event compute_gradient_2D (queue* q, int nPoints, int offset, int faces_offset, int nVertsPerFace, double* coords, double* flowmap, int* faces, int* nFacesPerPoint, int* facesPerPoint, double* logSqrt, double T )
+{
  int size = (nPoints% 512) ? (nPoints/512 +1)*512: nPoints;
- h.parallel_for<class ftle2D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
+return q->parallel_for<class ftle2D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
  if(i.get_global_id(0) < nPoints){
   int th_id = i.get_global_id(0) + offset;
   int nDim = 2;
@@ -325,24 +313,16 @@ return q->submit([&](handler &h){
   if (d_W_ei[1] > max ) max = d_W_ei[1];
   max = sycl::sqrt(max);
   max = sycl::log (max);
-  d_logSqrt[i.get_global_id(0)] = max / T;
+
+  logSqrt[i.get_global_id(0)] = max / T;
      }
  });
-});
 }
 
-event compute_gradient_3D (queue* q, int nPoints, int offset, int faces_offset, int nVertsPerFace, buffer<double, 1> *b_coords, buffer<double, 1> *b_flowmap, buffer<int, 1> *b_faces, buffer<int, 1> *b_nFacesPerPoint, buffer<int, 1> *b_facesPerPoint, buffer<double, 1> *b_log_sqrt, double T )
+event compute_gradient_3D (queue* q, int nPoints, int offset, int faces_offset, int nVertsPerFace, double* coords, double* flowmap, int* faces, int* nFacesPerPoint, int* facesPerPoint, double* logSqrt, double T )
 {
-return q->submit([&](handler &h){
- accessor coords{*b_coords, h, read_only};
- accessor flowmap{*b_flowmap, h, read_only};
- accessor faces{*b_faces, h, read_only};
- accessor nFacesPerPoint{*b_nFacesPerPoint, h, read_only};
- accessor facesPerPoint{*b_facesPerPoint, h, read_only};
- accessor d_logSqrt{*b_log_sqrt, h, write_only, no_init};
-
- int size = (nPoints% 512) ? (nPoints/512 +1)*512: nPoints;
- h.parallel_for<class ftle3D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
+int size = (nPoints% 512) ? (nPoints/512 +1)*512: nPoints;
+return q->parallel_for<class ftle3D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
   if(i.get_global_id(0) < nPoints){
   int th_id = i.get_global_id(0) + offset;
   int nDim = 3;
@@ -552,10 +532,10 @@ return q->submit([&](handler &h){
 
   max = sycl::sqrt(max);
   max = sycl::log (max);
-  d_logSqrt[i.get_global_id(0)] = max / T;
+
+  logSqrt[i.get_global_id(0)] = max / T;
      }
  });
-});
 }
 
 int main(int argc, char *argv[]) {
@@ -597,7 +577,7 @@ int main(int argc, char *argv[]) {
  int *nFacesPerPoint;
  int *facesPerPoint;
 
- auto m_property_list =property_list{property::queue::enable_profiling()};
+ auto m_property_list =property_list{property::queue::enable_profiling(), property::queue::in_order()};
  auto devs = device::get_devices(info::device_type::gpu);
  queue queues[nDevices];
  for (int d=0; d< nDevices; d++){
@@ -615,8 +595,6 @@ int main(int argc, char *argv[]) {
   }
  }
 
-
-
  printf("\nReading input data\n\n");
  printf("\tReading mesh points coordinates...		");
  file = fopen( argv[2], "r" );
@@ -628,7 +606,7 @@ int main(int argc, char *argv[]) {
  }
  nPoints = atoi(buffer);
  fclose(file);
- coords = (double *) malloc ( sizeof(double) * nPoints * nDim );
+ coords = malloc_shared<double> (nPoints * nDim, queues[0]);
  read_coordinates(argv[2], nDim, nPoints, coords);
  printf("DONE\n");
 
@@ -642,27 +620,24 @@ int main(int argc, char *argv[]) {
    exit(-1);
  }
  nFaces = atoi(buffer);
- faces = (int *) malloc ( sizeof(int) * nFaces * nVertsPerFace );
+ faces = malloc_shared<int> (nFaces * nVertsPerFace, queues[0]);
  read_faces(argv[3], nDim, nVertsPerFace, nFaces, faces);
  printf("DONE\n");
 
 
  printf("\tReading mesh flowmap (x, y[, z])...	   ");
- flowmap = (double*) malloc( sizeof(double) * nPoints * nDim );
+ flowmap = malloc_shared<double>(nPoints * nDim, queues[0]);
  read_flowmap ( argv[4], nDim, nPoints, flowmap );
  printf("DONE\n\n");
  printf("--------------------------------------------------------\n");
 
-
- nFacesPerPoint = (int *) malloc( sizeof(int) * nPoints );
-
+ nFacesPerPoint = malloc_shared<int>(nPoints, queues[0]);
  create_nFacesPerPoint_vector ( nDim, nPoints, nFaces, nVertsPerFace, faces, nFacesPerPoint );
- logSqrt= (double*) malloc( sizeof(double) * nPoints);
- facesPerPoint = (int *) malloc( sizeof(int) * nFacesPerPoint[ nPoints - 1 ] );
- int v_points[4] = {1,1,1,1};
- int offsets[4] = {0,0,0,0};
- int v_points_faces[4] = {1,1,1,1};
- int offsets_faces[4] = {0,0,0,0};
+ logSqrt= malloc_shared<double>(nPoints, queues[0]);
+ facesPerPoint = malloc_shared<int>(nFacesPerPoint[ nPoints - 1 ], queues[0]);
+ int v_points[nDevices];
+ int offsets[nDevices];
+ int offsets_faces[nDevices];
  event event_list[nDevices*2];
  int gap= ((nPoints / nDevices)/512)*512;
  for(int d=0; d < nDevices; d++){
@@ -672,34 +647,26 @@ int main(int argc, char *argv[]) {
  for(int d=0; d < nDevices; d++){
   int inf = (d != 0) ? nFacesPerPoint[offsets[d]-1] : 0;
   int sup = (d != nDevices-1) ? nFacesPerPoint[offsets[d+1]-1] : nFacesPerPoint[nPoints-1];
-  v_points_faces[d] = sup - inf;
   offsets_faces[d] = (d != 0) ? nFacesPerPoint[offsets[d]-1]: 0;
  }
 
- printf("\nComputing FTLE (SYCL BUFFERS)...");
+ printf("\nComputing FTLE (SYCL USM SHARED)...");
  struct timeval global_timer_start;
  gettimeofday(&global_timer_start, __null);
 
  {
-
-  ::buffer b_coords{coords, range<1>{static_cast<size_t>(nPoints * nDim)}};
-  ::buffer b_faces{faces, range<1>{static_cast<size_t>(nFaces * nVertsPerFace)}};
-  ::buffer b_flowmap{flowmap, range<1>{static_cast<size_t>(nPoints*nDim)}};
-  ::buffer b_nFacesPerPoint{nFacesPerPoint, range<1>{static_cast<size_t>(nPoints)}};
-  ::buffer b_facesP{facesPerPoint + offsets_faces[0], range<1>{static_cast<size_t>(v_points_faces[0])}};
-  ::buffer b_logSqrt{logSqrt + offsets[0], range<1>{static_cast<size_t>(v_points[0])}};
-
-
   for(int d=0; d < nDevices; d++){
-   event_list[d] = create_facesPerPoint_vector(&queues[d], nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, &b_faces, &b_nFacesPerPoint, &b_facesP);
-  }
-  for(int d=0; d < nDevices; d++){
+   int* p_faces = facesPerPoint + offsets_faces[d];
+   event_list[d] = create_facesPerPoint_vector(&queues[d], nDim, v_points[d], offsets[d], offsets_faces[d], nFaces, nVertsPerFace, faces, nFacesPerPoint, p_faces);
+   double* p_logSqrt = logSqrt + offsets[d];
    if ( nDim == 2 )
-    event_list[nDevices + d] = compute_gradient_2D ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint, &b_facesP, &b_logSqrt, t_eval);
+    event_list[nDevices + d] = compute_gradient_2D ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, coords, flowmap, faces, nFacesPerPoint,p_faces,p_logSqrt, t_eval);
      else
-    event_list[nDevices + d] = compute_gradient_3D ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, &b_coords, &b_flowmap, &b_faces, &b_nFacesPerPoint,&b_facesP, &b_logSqrt, t_eval);
+    event_list[nDevices + d] = compute_gradient_3D ( &queues[d], v_points[d], offsets[d], offsets_faces[d], nVertsPerFace, coords, flowmap, faces, nFacesPerPoint,p_faces, p_logSqrt, t_eval);
 
   }
+  for(int d=0; d < nDevices; d++)
+   queues[d].wait();
  }
  struct timeval global_timer_end;
  gettimeofday(&global_timer_end, __null);
@@ -710,18 +677,17 @@ int main(int argc, char *argv[]) {
  if ( atoi(argv[6]) )
  {
   printf("\nWriting result in output file...				  ");
-   FILE *fp_w = fopen("sycl_result.csv", "w");
+   FILE *fp_w = fopen("usm_result.csv", "w");
   for ( int ii = 0; ii < nPoints; ii++ )
    fprintf(fp_w, "%f\n", logSqrt[ii]);
   fclose(fp_w);
-  fp_w = fopen("sycl_preproc.csv", "w");
+  fp_w = fopen("usm_preproc.csv", "w");
   for ( int ii = 0; ii < nFacesPerPoint[nPoints-1]; ii++ )
    fprintf(fp_w, "%d\n", facesPerPoint[ii]);
   fclose(fp_w);
   printf("DONE\n\n");
   printf("--------------------------------------------------------\n");
   }
-
 
  printf("Execution times in miliseconds\n");
  printf("Device Num;  Preproc kernel; FTLE kernel\n");
@@ -733,13 +699,12 @@ int main(int argc, char *argv[]) {
  printf("Global time: %f:\n", time);
  printf("--------------------------------------------------------\n");
 
-
- free(coords);
- free(faces);
- free(flowmap);
- free(logSqrt);
- free(facesPerPoint);
- free(nFacesPerPoint);
+ free(coords, queues[0]);
+ free(faces, queues[0]);
+ free(flowmap, queues[0]);
+ free(logSqrt, queues[0]);
+ free(facesPerPoint, queues[0]);
+ free(nFacesPerPoint, queues[0]);
 
  return 0;
 }
