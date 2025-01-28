@@ -22,11 +22,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
-#include <math.h>
 
 #include <omp.h>
 #include <cuda.h>
-#include <cuda_runtime.h>
 
 void read_coordinates ( char *filename, int nDim, int nPoints, double *coords )
 {
