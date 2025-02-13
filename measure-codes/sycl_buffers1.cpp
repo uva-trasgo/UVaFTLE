@@ -154,7 +154,7 @@ return q->submit([&](handler &h){
  accessor nFacesPerPoint{*b_nFacesPerPoint, h, read_only};
  accessor facesPerPoint{*b_facesPerPoint, h, write_only, no_init};
  int size = (nPoints% 512) ? (nPoints/512 +1)*512: nPoints;
- h.parallel_for<class preprocess> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
+ h.parallel_for (nd_range(range{static_cast<size_t>(size)},range{512}), [=](nd_item<1> i){
  if(i.get_global_id(0) < nPoints){
   int th_id = i.get_global_id(0) + offset;
   int count, iface, ipf, nFacesP, iFacesP;
@@ -183,7 +183,7 @@ return q->submit([&](handler &h){
  accessor d_logSqrt{*b_log_sqrt, h, write_only, no_init};
 
  int size = (nPoints% 512) ? (nPoints/512 +1)*512: nPoints;
- h.parallel_for<class ftle2D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
+ h.parallel_for (nd_range(range{static_cast<size_t>(size)},range{512}), [=](nd_item<1> i){
  if(i.get_global_id(0) < nPoints){
   int th_id = i.get_global_id(0) + offset;
   int nDim = 2;
@@ -342,7 +342,7 @@ return q->submit([&](handler &h){
  accessor d_logSqrt{*b_log_sqrt, h, write_only, no_init};
 
  int size = (nPoints% 512) ? (nPoints/512 +1)*512: nPoints;
- h.parallel_for<class ftle3D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
+ h.parallel_for (nd_range(range{static_cast<size_t>(size)},range{512}), [=](nd_item<1> i){
   if(i.get_global_id(0) < nPoints){
   int th_id = i.get_global_id(0) + offset;
   int nDim = 3;
@@ -682,12 +682,12 @@ int main(int argc, char *argv[]) {
 
  {
 
-  ::buffer b_coords{coords, range<1>{static_cast<size_t>(nPoints * nDim)}};
-  ::buffer b_faces{faces, range<1>{static_cast<size_t>(nFaces * nVertsPerFace)}};
-  ::buffer b_flowmap{flowmap, range<1>{static_cast<size_t>(nPoints*nDim)}};
-  ::buffer b_nFacesPerPoint{nFacesPerPoint, range<1>{static_cast<size_t>(nPoints)}};
-  ::buffer b_facesP{facesPerPoint + offsets_faces[0], range<1>{static_cast<size_t>(v_points_faces[0])}};
-  ::buffer b_logSqrt{logSqrt + offsets[0], range<1>{static_cast<size_t>(v_points[0])}};
+  ::buffer b_coords{coords, range{static_cast<size_t>(nPoints * nDim)}};
+  ::buffer b_faces{faces, range{static_cast<size_t>(nFaces * nVertsPerFace)}};
+  ::buffer b_flowmap{flowmap, range{static_cast<size_t>(nPoints*nDim)}};
+  ::buffer b_nFacesPerPoint{nFacesPerPoint, range{static_cast<size_t>(nPoints)}};
+  ::buffer b_facesP{facesPerPoint + offsets_faces[0], range{static_cast<size_t>(v_points_faces[0])}};
+  ::buffer b_logSqrt{logSqrt + offsets[0], range{static_cast<size_t>(v_points[0])}};
 
 
   for(int d=0; d < nDevices; d++){
