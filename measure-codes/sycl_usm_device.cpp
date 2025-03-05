@@ -150,7 +150,7 @@ void create_nFacesPerPoint_vector ( int nDim, int nPoints, int nFaces, int nVert
 event create_facesPerPoint_vector (queue* q, int nDim, int nPoints, int offset, int faces_offset, int nFaces, int nVertsPerFace, int* faces, int* nFacesPerPoint, int* facesPerPoint)
 {
 int size = (nPoints% 512) ? (nPoints/512 +1)*512: nPoints;
-return q->parallel_for<class preprocess> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
+return q->parallel_for (nd_range(range{static_cast<size_t>(size)},range{512}), [=](nd_item<1> i){
  if(i.get_global_id(0) < nPoints){
   int th_id = i.get_global_id(0) + offset;
   int count, iface, ipf, nFacesP, iFacesP;
@@ -171,7 +171,7 @@ return q->parallel_for<class preprocess> (nd_range<1>(range<1>{static_cast<size_
 event compute_gradient_2D (queue* q, int nPoints, int offset, int faces_offset, int nVertsPerFace, double* coords, double* flowmap, int* faces, int* nFacesPerPoint, int* facesPerPoint, double* logSqrt, double T )
 {
  int size = (nPoints% 512) ? (nPoints/512 +1)*512: nPoints;
-return q->parallel_for<class ftle2D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
+return q->parallel_for (nd_range(range{static_cast<size_t>(size)},range{512}), [=](nd_item<1> i){
  if(i.get_global_id(0) < nPoints){
   int th_id = i.get_global_id(0) + offset;
   int nDim = 2;
@@ -322,7 +322,7 @@ return q->parallel_for<class ftle2D> (nd_range<1>(range<1>{static_cast<size_t>(s
 event compute_gradient_3D (queue* q, int nPoints, int offset, int faces_offset, int nVertsPerFace, double* coords, double* flowmap, int* faces, int* nFacesPerPoint, int* facesPerPoint, double* logSqrt, double T )
 {
 int size = (nPoints% 512) ? (nPoints/512 +1)*512: nPoints;
-return q->parallel_for<class ftle3D> (nd_range<1>(range<1>{static_cast<size_t>(size)},range<1>{static_cast<size_t>(512)}), [=](nd_item<1> i){
+return q->parallel_for (nd_range(range{static_cast<size_t>(size)},range{512}), [=](nd_item<1> i){
   if(i.get_global_id(0) < nPoints){
   int th_id = i.get_global_id(0) + offset;
   int nDim = 3;
